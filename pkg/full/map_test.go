@@ -1,0 +1,747 @@
+package errors
+
+import (
+	stderrors "errors"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+const _empty = "empty"
+
+func TestStructuredErrorAsMap(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// given
+		err *StructuredError
+		// then
+		wantKeys []string
+	}{
+		{
+			name:     "given_nil_error_when_as_map_then_returns_map_with_nil_message",
+			err:      nil,
+			wantKeys: []string{"message"},
+		},
+		{
+			name:     "given_error_with_only_message_when_as_map_then_returns_map_with_message",
+			err:      New("test error"),
+			wantKeys: []string{"message"},
+		},
+		{
+			name:     "given_error_with_empty_message_when_as_map_then_returns_map_with_nil_value",
+			err:      New(""),
+			wantKeys: []string{"message"},
+		},
+		{
+			name:     "given_error_with_attrs_when_as_map_then_returns_map_with_attrs",
+			err:      New("test").WithAttrs(String("key", "value")),
+			wantKeys: []string{"message", "attrs"},
+		},
+		{
+			name:     "given_error_with_tags_when_as_map_then_returns_map_with_tags",
+			err:      New("test").WithTags("tag1", "tag2"),
+			wantKeys: []string{"message", "tags"},
+		},
+		{
+			name:     "given_error_with_errors_when_as_map_then_returns_map_with_errors",
+			err:      New("test").WithErrors(stderrors.New("child")),
+			wantKeys: []string{"message", "errors"},
+		},
+		{
+			name:     "given_error_with_stack_when_as_map_then_returns_map_with_stack",
+			err:      New("test").WithStack([]byte("line1\nline2")),
+			wantKeys: []string{"message", "stack"},
+		},
+		{
+			name: "given_error_with_all_fields_when_as_map_then_returns_map_with_all_keys",
+			err: New("test").
+				WithAttrs(String("key", "value")).
+				WithTags("tag").
+				WithErrors(stderrors.New("child")).
+				WithStack([]byte("stack")),
+			wantKeys: []string{"message", "attrs", "tags", "errors", "stack"},
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// when
+				got := test.err.AsMap()
+
+				// then
+				assert.NotNil(t, got)
+				assert.Len(t, got, len(test.wantKeys))
+
+				for _, key := range test.wantKeys {
+					assert.Contains(t, got, key)
+				}
+			},
+		)
+	}
+}
+
+func TestStructuredErrorAsMapValues(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// given
+		err *StructuredError
+		// then
+		wantMessageValue string
+	}{
+		{
+			name:             "given_nil_error_when_as_map_then_message_is_nil_value",
+			err:              nil,
+			wantMessageValue: nilValue,
+		},
+		{
+			name:             "given_error_with_message_when_as_map_then_message_is_correct",
+			err:              New("test message"),
+			wantMessageValue: "test message",
+		},
+		{
+			name:             "given_error_with_empty_message_when_as_map_then_message_is_nil_value",
+			err:              New(""),
+			wantMessageValue: nilValue,
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// when
+				got := test.err.AsMap()
+
+				// then
+				assert.Equal(t, test.wantMessageValue, got["message"])
+			},
+		)
+	}
+}
+
+func TestStructuredErrorAsMapWithAttrs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// given
+		err *StructuredError
+		// then
+		wantAttrsType string
+		wantAttrKeys  []string
+	}{
+		{
+			name:          "given_error_with_single_attr_when_as_map_then_attrs_is_map",
+			err:           New("test").WithAttrs(String("key1", "value1")),
+			wantAttrsType: "map",
+			wantAttrKeys:  []string{"key1"},
+		},
+		{
+			name:          "given_error_with_multiple_attrs_when_as_map_then_attrs_contains_all_keys",
+			err:           New("test").WithAttrs(String("key1", "value1"), Int("key2", 42)),
+			wantAttrsType: "map",
+			wantAttrKeys:  []string{"key1", "key2"},
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// when
+				got := test.err.AsMap()
+
+				// then
+				attrs, ok := got["attrs"].(map[string]any)
+				assert.True(t, ok)
+				assert.Len(t, attrs, len(test.wantAttrKeys))
+
+				for _, key := range test.wantAttrKeys {
+					assert.Contains(t, attrs, key)
+				}
+			},
+		)
+	}
+}
+
+func TestStructuredErrorAsMapWithTags(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// given
+		err *StructuredError
+		// then
+		wantTags []string
+	}{
+		{
+			name:     "given_error_with_single_tag_when_as_map_then_tags_is_slice",
+			err:      New("test").WithTags("tag1"),
+			wantTags: []string{"tag1"},
+		},
+		{
+			name:     "given_error_with_multiple_tags_when_as_map_then_tags_contains_all",
+			err:      New("test").WithTags("tag1", "tag2", "tag3"),
+			wantTags: []string{"tag1", "tag2", "tag3"},
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// when
+				got := test.err.AsMap()
+
+				// then
+				tags, ok := got["tags"].([]string)
+				assert.True(t, ok)
+				assert.Len(t, tags, len(test.wantTags))
+			},
+		)
+	}
+}
+
+func TestStructuredErrorAsMapWithErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		err         *StructuredError
+		name        string
+		wantErrsLen int
+	}{
+		{
+			name:        "given_error_with_single_child_error_when_as_map_then_errors_is_slice_of_maps",
+			err:         New("test").WithErrors(stderrors.New("child")),
+			wantErrsLen: 1,
+		},
+		{
+			name:        "given_error_with_multiple_child_errors_when_as_map_then_errors_contains_all",
+			err:         New("test").WithErrors(stderrors.New("child1"), stderrors.New("child2")),
+			wantErrsLen: 2,
+		},
+		{
+			name:        "given_error_with_structured_child_when_as_map_then_child_is_map",
+			err:         New("parent").WithErrors(New("child").WithAttrs(String("key", "value"))),
+			wantErrsLen: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// when
+				got := test.err.AsMap()
+
+				// then
+				errs, ok := got["errors"].([]map[string]any)
+				assert.True(t, ok)
+				assert.Len(t, errs, test.wantErrsLen)
+
+				for _, errMap := range errs {
+					assert.Contains(t, errMap, "message")
+				}
+			},
+		)
+	}
+}
+
+func TestStructuredErrorAsMapWithStack(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		err          *StructuredError
+		name         string
+		wantStackLen int
+	}{
+		{
+			name:         "given_error_with_single_line_stack_when_as_map_then_stack_is_slice",
+			err:          New("test").WithStack([]byte("line1")),
+			wantStackLen: 1,
+		},
+		{
+			name:         "given_error_with_multi_line_stack_when_as_map_then_stack_is_split",
+			err:          New("test").WithStack([]byte("line1\nline2\nline3")),
+			wantStackLen: 3,
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// when
+				got := test.err.AsMap()
+
+				// then
+				stack, ok := got["stack"].([]string)
+				assert.True(t, ok)
+				assert.Len(t, stack, test.wantStackLen)
+			},
+		)
+	}
+}
+
+func TestAttrAsMap(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// given
+		attr *Attr
+		// then
+		wantKeys []string
+	}{
+		{
+			name:     "given_nil_attr_when_as_map_then_returns_map_with_nil_key",
+			attr:     nil,
+			wantKeys: []string{nilValue},
+		},
+		{
+			name:     "given_string_attr_when_as_map_then_returns_map_with_key",
+			attr:     &Attr{Type: StringType, Key: "test", Value: "value"},
+			wantKeys: []string{"test"},
+		},
+		{
+			name:     "given_int_attr_when_as_map_then_returns_map_with_key",
+			attr:     &Attr{Type: IntType, Key: "count", Value: 42},
+			wantKeys: []string{"count"},
+		},
+		{
+			name:     "given_bool_attr_when_as_map_then_returns_map_with_key",
+			attr:     &Attr{Type: BoolType, Key: "flag", Value: true},
+			wantKeys: []string{"flag"},
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// when
+				got := test.attr.AsMap()
+
+				// then
+				assert.NotNil(t, got)
+				assert.Len(t, got, len(test.wantKeys))
+
+				for _, key := range test.wantKeys {
+					assert.Contains(t, got, key)
+				}
+			},
+		)
+	}
+}
+
+func TestAttrAsMapWithStrings(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// given
+		attr *Attr
+		// then
+		wantValueType string
+		wantValueLen  int
+		wantEmpty     bool
+	}{
+		{
+			name:          "given_strings_attr_when_as_map_then_value_is_slice",
+			attr:          &Attr{Type: StringsType, Key: "tags", Value: []string{"tag1", "tag2"}},
+			wantValueType: "slice",
+			wantValueLen:  2,
+			wantEmpty:     false,
+		},
+		{
+			name:          "given_empty_strings_attr_when_as_map_then_value_is_empty_struct_slice",
+			attr:          &Attr{Type: StringsType, Key: "tags", Value: []string{}},
+			wantValueType: _empty,
+			wantValueLen:  0,
+			wantEmpty:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// when
+				got := test.attr.AsMap()
+
+				// then
+				if test.wantEmpty {
+					emptySlice, ok := got[test.attr.Key].([]struct{})
+					assert.True(t, ok)
+					assert.Len(t, emptySlice, test.wantValueLen)
+				} else {
+					value, ok := got[test.attr.Key].([]string)
+					assert.True(t, ok)
+					assert.Len(t, value, test.wantValueLen)
+				}
+			},
+		)
+	}
+}
+
+func TestErrorToMap(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// given
+		err error
+		// then
+		wantMessageValue string
+	}{
+		{
+			name:             "given_nil_error_when_error_to_map_then_message_is_nil_value",
+			err:              nil,
+			wantMessageValue: nilValue,
+		},
+		{
+			name:             "given_standard_error_when_error_to_map_then_message_is_error_string",
+			err:              stderrors.New("standard error"),
+			wantMessageValue: "standard error",
+		},
+		{
+			name:             "given_structured_error_when_error_to_map_then_uses_structured_format",
+			err:              New("structured error"),
+			wantMessageValue: "structured error",
+		},
+		{
+			name:             "given_error_with_whitespace_when_error_to_map_then_message_is_trimmed",
+			err:              stderrors.New("  error with spaces  "),
+			wantMessageValue: "error with spaces",
+		},
+		{
+			name:             "given_error_with_empty_message_when_error_to_map_then_message_is_nil_value",
+			err:              stderrors.New(""),
+			wantMessageValue: nilValue,
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given
+				fields := make(map[string]any)
+
+				// when
+				errorToMap(fields, test.err)
+
+				// then
+				assert.Equal(t, test.wantMessageValue, fields["message"])
+			},
+		)
+	}
+}
+
+func TestSliceToMapWithAttrs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		wantType string
+		attrs    []Attr
+		wantLen  int
+	}{
+		{
+			name:     "given_empty_attrs_slice_when_slice_to_map_then_returns_empty_struct_slice",
+			attrs:    []Attr{},
+			wantType: _empty,
+			wantLen:  0,
+		},
+		{
+			name:     "given_single_attr_when_slice_to_map_then_returns_map_with_attr",
+			attrs:    []Attr{String("key", "value")},
+			wantType: "map",
+			wantLen:  1,
+		},
+		{
+			name:     "given_multiple_attrs_when_slice_to_map_then_returns_map_with_all_attrs",
+			attrs:    []Attr{String("key1", "value1"), Int("key2", 42)},
+			wantType: "map",
+			wantLen:  2,
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given
+				fields := make(map[string]any)
+
+				// when
+				sliceToMap(fields, "attrs", test.attrs)
+
+				// then
+				if test.wantType == _empty {
+					emptySlice, ok := fields["attrs"].([]struct{})
+					assert.True(t, ok)
+					assert.Len(t, emptySlice, test.wantLen)
+				} else {
+					attrsMap, ok := fields["attrs"].(map[string]any)
+					assert.True(t, ok)
+					assert.Len(t, attrsMap, test.wantLen)
+				}
+			},
+		)
+	}
+}
+
+func TestSliceToMapWithErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		wantType string
+		errs     []error
+		wantLen  int
+	}{
+		{
+			name:     "given_empty_errors_slice_when_slice_to_map_then_returns_empty_struct_slice",
+			errs:     []error{},
+			wantType: _empty,
+			wantLen:  0,
+		},
+		{
+			name:     "given_single_error_when_slice_to_map_then_returns_slice_with_error_map",
+			errs:     []error{stderrors.New("error1")},
+			wantType: "slice",
+			wantLen:  1,
+		},
+		{
+			name:     "given_multiple_errors_when_slice_to_map_then_returns_slice_with_all_error_maps",
+			errs:     []error{stderrors.New("error1"), stderrors.New("error2")},
+			wantType: "slice",
+			wantLen:  2,
+		},
+		{
+			name:     "given_nil_error_when_slice_to_map_then_includes_nil_error_map",
+			errs:     []error{nil},
+			wantType: "slice",
+			wantLen:  1,
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given
+				fields := make(map[string]any)
+
+				// when
+				sliceToMap(fields, "errors", test.errs)
+
+				// then
+				if test.wantType == _empty {
+					emptySlice, ok := fields["errors"].([]struct{})
+					assert.True(t, ok)
+					assert.Len(t, emptySlice, test.wantLen)
+				} else {
+					errsSlice, ok := fields["errors"].([]map[string]any)
+					assert.True(t, ok)
+					assert.Len(t, errsSlice, test.wantLen)
+				}
+			},
+		)
+	}
+}
+
+func TestSliceToMapWithStrings(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		wantType string
+		strings  []string
+		wantLen  int
+	}{
+		{
+			name:     "given_empty_strings_slice_when_slice_to_map_then_returns_empty_struct_slice",
+			strings:  []string{},
+			wantType: _empty,
+			wantLen:  0,
+		},
+		{
+			name:     "given_single_string_when_slice_to_map_then_returns_slice_with_string",
+			strings:  []string{"tag1"},
+			wantType: "slice",
+			wantLen:  1,
+		},
+		{
+			name:     "given_multiple_strings_when_slice_to_map_then_returns_slice_with_all_strings",
+			strings:  []string{"tag1", "tag2", "tag3"},
+			wantType: "slice",
+			wantLen:  3,
+		},
+		{
+			name:     "given_strings_with_whitespace_when_slice_to_map_then_trims_whitespace",
+			strings:  []string{"  tag1  ", "tag2"},
+			wantType: "slice",
+			wantLen:  2,
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given
+				fields := make(map[string]any)
+
+				// when
+				sliceToMap(fields, "tags", test.strings)
+
+				// then
+				if test.wantType == _empty {
+					emptySlice, ok := fields["tags"].([]struct{})
+					assert.True(t, ok)
+					assert.Len(t, emptySlice, test.wantLen)
+				} else {
+					stringsSlice, ok := fields["tags"].([]string)
+					assert.True(t, ok)
+					assert.Len(t, stringsSlice, test.wantLen)
+				}
+			},
+		)
+	}
+}
+
+func TestSliceToMapWithGenericSlice(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// given
+		slice []int
+		// then
+		wantLen int
+	}{
+		{
+			name:    "given_generic_slice_when_slice_to_map_then_returns_slice_as_is",
+			slice:   []int{1, 2, 3},
+			wantLen: 3,
+		},
+		{
+			name:    "given_empty_generic_slice_when_slice_to_map_then_returns_empty_struct_slice",
+			slice:   []int{},
+			wantLen: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given
+				fields := make(map[string]any)
+
+				// when
+				sliceToMap(fields, "numbers", test.slice)
+
+				// then
+				if test.wantLen == 0 {
+					emptySlice, ok := fields["numbers"].([]struct{})
+					assert.True(t, ok)
+					assert.Len(t, emptySlice, test.wantLen)
+				} else {
+					intSlice, ok := fields["numbers"].([]int)
+					assert.True(t, ok)
+					assert.Len(t, intSlice, test.wantLen)
+				}
+			},
+		)
+	}
+}
+
+func TestAsMapIntegration(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// given
+		err *StructuredError
+		// then
+		wantKeys      []string
+		wantAttrsKeys []string
+	}{
+		{
+			name: "given_complex_error_when_as_map_then_all_fields_present",
+			err: New("parent error").
+				WithAttrs(String("request_id", "123"), Int("status", 500)).
+				WithTags("api", "error").
+				WithErrors(
+					stderrors.New("database connection failed"),
+					New("timeout").WithAttrs(Int("timeout_ms", 5000)),
+				).
+				WithStack([]byte("main.go:10\nhandler.go:25")),
+			wantKeys:      []string{"message", "attrs", "tags", "errors", "stack"},
+			wantAttrsKeys: []string{"request_id", "status"},
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// when
+				got := test.err.AsMap()
+
+				// then
+				assert.Len(t, got, len(test.wantKeys))
+
+				for _, key := range test.wantKeys {
+					assert.Contains(t, got, key)
+				}
+
+				if len(test.wantAttrsKeys) > 0 {
+					attrs, ok := got["attrs"].(map[string]any)
+					assert.True(t, ok)
+
+					for _, attrKey := range test.wantAttrsKeys {
+						assert.Contains(t, attrs, attrKey)
+					}
+				}
+			},
+		)
+	}
+}

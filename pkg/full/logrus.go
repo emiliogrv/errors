@@ -1,0 +1,56 @@
+package errors
+
+import (
+	"github.com/sirupsen/logrus"
+)
+
+type (
+	// LogrusFieldsMarshaler is the equivalent of zapcore.ObjectMarshaler or zerolog.LogObjectMarshaler.
+	//
+	// This is not logrus official interface, but it is here to help you somehow is you need to do type assertions.
+	LogrusFieldsMarshaler interface {
+		MarshalLogrusFields() logrus.Fields
+	}
+)
+
+// MarshalLogrusFields marshals the StructuredError into a logrus.Fields.
+// If the receiver is nil, it adds a single field to the logrus.Fields with the key "message"
+// and the value nilValue.
+//
+// Otherwise, it will have the following attributes:
+//   - Message
+//   - Tags
+//   - Attrs
+//   - Errors
+//   - Stack.
+//
+// Usage must be like:
+//
+//	var _err *errors.StructuredError
+//
+//	if !errors.As(err, &_err) {
+//	  log.Fatal("what!?", err)
+//	}
+//
+//	loggerJSON := logrus.New()
+//	loggerJSON.SetFormatter(&logrus.JSONFormatter{})
+//	loggerJSON.WithFields(logrus.Fields{"err": _err.MarshalLogrusFields()}).Errorln("message")
+func (receiver *StructuredError) MarshalLogrusFields() logrus.Fields {
+	fields := make(logrus.Fields)
+
+	receiver.asMap(fields)
+
+	return fields
+}
+
+// MarshalLogrusFields marshals the Attr into a logrus.Fields.
+// If the receiver is nil, it adds a single field to the logrus.Fields with the key "nil" and the value nilValue.
+//
+// Otherwise, it will have a single attribute with the key receiver.Key and the value receiver.Value.
+func (receiver *Attr) MarshalLogrusFields() logrus.Fields {
+	fields := make(logrus.Fields, one)
+
+	receiver.asMap(fields)
+
+	return fields
+}

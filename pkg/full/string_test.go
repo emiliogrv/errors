@@ -1,0 +1,562 @@
+package errors
+
+import (
+	stderrors "errors"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestStructuredErrorError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// given
+		err *StructuredError
+		// then
+		wantContains []string
+	}{
+		{
+			name:         "given_nil_error_when_error_then_returns_string_with_nil_message",
+			err:          nil,
+			wantContains: []string{"message=!NILVALUE"},
+		},
+		{
+			name:         "given_error_with_message_when_error_then_returns_string_with_message",
+			err:          New("test error"),
+			wantContains: []string{"message=test error"},
+		},
+		{
+			name:         "given_error_with_empty_message_when_error_then_returns_string_with_nil_value",
+			err:          New(""),
+			wantContains: []string{"message=!NILVALUE"},
+		},
+		{
+			name:         "given_error_with_tags_when_error_then_returns_string_with_tags",
+			err:          New("test").WithTags("tag1", "tag2"),
+			wantContains: []string{"message=test", "tags="},
+		},
+		{
+			name:         "given_error_with_attrs_when_error_then_returns_string_with_attrs",
+			err:          New("test").WithAttrs(String("key", "value")),
+			wantContains: []string{"message=test", "attrs="},
+		},
+		{
+			name:         "given_error_with_child_errors_when_error_then_returns_string_with_errors",
+			err:          New("parent").WithErrors(stderrors.New("child")),
+			wantContains: []string{"message=parent", "errors="},
+		},
+		{
+			name:         "given_error_with_stack_when_error_then_returns_string_with_stack",
+			err:          New("test").WithStack([]byte("stack trace")),
+			wantContains: []string{"message=test", "stack="},
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// when
+				got := test.err.Error()
+
+				// then
+				for _, want := range test.wantContains {
+					assert.Contains(t, got, want)
+				}
+			},
+		)
+	}
+}
+
+func TestStructuredErrorString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		err             *StructuredError
+		name            string
+		wantSameAsError bool
+	}{
+		{
+			name:            "given_nil_error_when_string_then_returns_same_as_error",
+			err:             nil,
+			wantSameAsError: true,
+		},
+		{
+			name:            "given_error_with_message_when_string_then_returns_same_as_error",
+			err:             New("test"),
+			wantSameAsError: true,
+		},
+		{
+			name:            "given_complex_error_when_string_then_returns_same_as_error",
+			err:             New("test").WithTags("tag").WithAttrs(String("key", "value")),
+			wantSameAsError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// when
+				gotString := test.err.String()
+				gotError := test.err.Error()
+
+				// then
+				if test.wantSameAsError {
+					assert.Equal(t, gotError, gotString)
+				}
+			},
+		)
+	}
+}
+
+func TestAttrString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// given
+		attr *Attr
+		// then
+		wantContains []string
+	}{
+		{
+			name:         "given_nil_attr_when_string_then_returns_string_with_nil",
+			attr:         nil,
+			wantContains: []string{"!NILVALUE=!NILVALUE"},
+		},
+		{
+			name:         "given_string_attr_when_string_then_returns_string_with_key_value",
+			attr:         &Attr{Type: StringType, Key: "name", Value: "test"},
+			wantContains: []string{"name=test"},
+		},
+		{
+			name:         "given_int_attr_when_string_then_returns_string_with_int_value",
+			attr:         &Attr{Type: IntType, Key: "count", Value: 42},
+			wantContains: []string{"count=42"},
+		},
+		{
+			name:         "given_bool_attr_when_string_then_returns_string_with_bool_value",
+			attr:         &Attr{Type: BoolType, Key: "active", Value: true},
+			wantContains: []string{"active=true"},
+		},
+		{
+			name:         "given_float64_attr_when_string_then_returns_string_with_float_value",
+			attr:         &Attr{Type: Float64Type, Key: "price", Value: 99.99},
+			wantContains: []string{"price=99.99"},
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// when
+				got := test.attr.String()
+
+				// then
+				for _, want := range test.wantContains {
+					assert.Contains(t, got, want)
+				}
+			},
+		)
+	}
+}
+
+func TestAttrStringWithSlices(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// given
+		attr *Attr
+		// then
+		wantContains []string
+	}{
+		{
+			name:         "given_bools_attr_when_string_then_returns_string_with_array",
+			attr:         &Attr{Type: BoolsType, Key: "flags", Value: []bool{true, false}},
+			wantContains: []string{"flags=", "[", "]"},
+		},
+		{
+			name:         "given_ints_attr_when_string_then_returns_string_with_array",
+			attr:         &Attr{Type: IntsType, Key: "numbers", Value: []int{1, 2, 3}},
+			wantContains: []string{"numbers=", "[", "]"},
+		},
+		{
+			name:         "given_strings_attr_when_string_then_returns_string_with_array",
+			attr:         &Attr{Type: StringsType, Key: "tags", Value: []string{"tag1", "tag2"}},
+			wantContains: []string{"tags=", "[", "]"},
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// when
+				got := test.attr.String()
+
+				// then
+				for _, want := range test.wantContains {
+					assert.Contains(t, got, want)
+				}
+			},
+		)
+	}
+}
+
+func TestAttrStringWithTimeTypes(t *testing.T) {
+	fixedTime := time.Date(2023, 10, 15, 12, 30, 0, 0, time.UTC)
+	fixedDuration := 5 * time.Second
+
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// given
+		attr *Attr
+		// then
+		wantContains []string
+	}{
+		{
+			name:         "given_time_attr_when_string_then_returns_string_with_time",
+			attr:         &Attr{Type: TimeType, Key: "created", Value: fixedTime},
+			wantContains: []string{"created="},
+		},
+		{
+			name:         "given_duration_attr_when_string_then_returns_string_with_duration",
+			attr:         &Attr{Type: DurationType, Key: "timeout", Value: fixedDuration},
+			wantContains: []string{"timeout=5s"},
+		},
+		{
+			name:         "given_times_attr_when_string_then_returns_string_with_array",
+			attr:         &Attr{Type: TimesType, Key: "timestamps", Value: []time.Time{fixedTime}},
+			wantContains: []string{"timestamps=", "[", "]"},
+		},
+		{
+			name:         "given_durations_attr_when_string_then_returns_string_with_array",
+			attr:         &Attr{Type: DurationsType, Key: "timeouts", Value: []time.Duration{fixedDuration}},
+			wantContains: []string{"timeouts=", "[", "]"},
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// when
+				got := test.attr.String()
+
+				// then
+				for _, want := range test.wantContains {
+					assert.Contains(t, got, want)
+				}
+			},
+		)
+	}
+}
+
+func TestValueToString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// given
+		key   string
+		value string
+		// then
+		want string
+	}{
+		{
+			name:  "given_key_value_when_value_to_string_then_returns_formatted_string",
+			key:   "message",
+			value: "test",
+			want:  "(message=test)",
+		},
+		{
+			name:  "given_empty_value_when_value_to_string_then_returns_formatted_string",
+			key:   "key",
+			value: "",
+			want:  "(key=)",
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given
+				var sb strings.Builder
+
+				// when
+				valueToString(&sb, test.key, test.value)
+
+				// then
+				assert.Equal(t, test.want, sb.String())
+			},
+		)
+	}
+}
+
+func TestErrorToString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// given
+		err error
+		// then
+		wantContains []string
+	}{
+		{
+			name:         "given_nil_error_when_error_to_string_then_returns_string_with_nil_message",
+			err:          nil,
+			wantContains: []string{"message=!NILVALUE"},
+		},
+		{
+			name:         "given_standard_error_when_error_to_string_then_returns_string_with_message",
+			err:          stderrors.New("standard error"),
+			wantContains: []string{"message=standard error"},
+		},
+		{
+			name:         "given_structured_error_when_error_to_string_then_returns_full_string",
+			err:          New("structured"),
+			wantContains: []string{"message=structured"},
+		},
+		{
+			name:         "given_error_with_whitespace_when_error_to_string_then_trims_whitespace",
+			err:          stderrors.New("  error  "),
+			wantContains: []string{"message=error"},
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given
+				var sb strings.Builder
+
+				// when
+				errorToString(&sb, 0, test.err)
+
+				// then
+				got := sb.String()
+				for _, want := range test.wantContains {
+					assert.Contains(t, got, want)
+				}
+			},
+		)
+	}
+}
+
+func TestSliceToString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// given
+		key   string
+		slice []string
+		// then
+		wantContains []string
+	}{
+		{
+			name:         "given_empty_slice_when_slice_to_string_then_returns_empty_brackets",
+			key:          "tags",
+			slice:        []string{},
+			wantContains: []string{"tags=[]"},
+		},
+		{
+			name:         "given_single_item_slice_when_slice_to_string_then_returns_formatted_array",
+			key:          "tags",
+			slice:        []string{"tag1"},
+			wantContains: []string{"tags=[", "tag1", "]"},
+		},
+		{
+			name:         "given_multiple_items_slice_when_slice_to_string_then_returns_formatted_array",
+			key:          "tags",
+			slice:        []string{"tag1", "tag2", "tag3"},
+			wantContains: []string{"tags=[", "tag1", "tag2", "tag3", "]"},
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given
+				var sb strings.Builder
+
+				// when
+				sliceToString(&sb, 0, test.key, test.slice)
+
+				// then
+				got := sb.String()
+				for _, want := range test.wantContains {
+					assert.Contains(t, got, want)
+				}
+			},
+		)
+	}
+}
+
+func TestTabToString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// given
+		depth int
+		// then
+		wantLen int
+	}{
+		{
+			name:    "given_zero_depth_when_tab_to_string_then_returns_empty_string",
+			depth:   0,
+			wantLen: 0,
+		},
+		{
+			name:    "given_one_depth_when_tab_to_string_then_returns_one_tab",
+			depth:   1,
+			wantLen: 1,
+		},
+		{
+			name:    "given_three_depth_when_tab_to_string_then_returns_three_tabs",
+			depth:   3,
+			wantLen: 3,
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given
+				var sb strings.Builder
+
+				// when
+				tabToString(&sb, test.depth)
+
+				// then
+				assert.Equal(t, test.wantLen, strings.Count(sb.String(), "\t"))
+			},
+		)
+	}
+}
+
+func TestStructuredErrorErrorWithComplexData(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		err          *StructuredError
+		name         string
+		wantNotEmpty bool
+	}{
+		{
+			name: "given_error_with_nested_errors_when_error_then_returns_formatted_string",
+			err: New("parent").
+				WithErrors(
+					New("child1").WithAttrs(String("key1", "value1")),
+					New("child2").WithAttrs(String("key2", "value2")),
+				),
+			wantNotEmpty: true,
+		},
+		{
+			name: "given_error_with_all_fields_when_error_then_returns_complete_string",
+			err: New("complete").
+				WithTags("tag1", "tag2").
+				WithAttrs(String("key", "value"), Int("count", 42)).
+				WithErrors(stderrors.New("child")).
+				WithStack([]byte("stack trace")),
+			wantNotEmpty: true,
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// when
+				got := test.err.Error()
+
+				// then
+				if test.wantNotEmpty {
+					assert.NotEmpty(t, got)
+				}
+			},
+		)
+	}
+}
+
+func TestObjectToString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// given
+		key    string
+		object []Attr
+		// then
+		wantContains []string
+	}{
+		{
+			name:         "given_empty_object_when_object_to_string_then_returns_empty_braces",
+			key:          "obj",
+			object:       []Attr{},
+			wantContains: []string{"obj={}"},
+		},
+		{
+			name:         "given_object_with_attrs_when_object_to_string_then_returns_formatted_object",
+			key:          "obj",
+			object:       []Attr{String("key", "value")},
+			wantContains: []string{"obj={", "key=value", "}"},
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given
+				var sb strings.Builder
+
+				// when
+				objectToString(&sb, 0, test.key, test.object)
+
+				// then
+				got := sb.String()
+				for _, want := range test.wantContains {
+					assert.Contains(t, got, want)
+				}
+			},
+		)
+	}
+}

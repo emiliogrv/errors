@@ -1,0 +1,231 @@
+package errors
+
+import (
+	stderrors "errors"
+	"strings"
+	"time"
+
+	"github.com/rs/zerolog"
+)
+
+type (
+	// LogObjectMarshalerFunc is a helper type that implements zerolog.LogObjectMarshaler.
+	LogObjectMarshalerFunc func(*zerolog.Event)
+
+	// LogArrayMarshalerFunc is a helper type that implements zerolog.LogArrayMarshaler.
+	LogArrayMarshalerFunc func(*zerolog.Array)
+)
+
+// MarshalZerologObject implements zerolog.LogObjectMarshaler.
+func (f LogObjectMarshalerFunc) MarshalZerologObject(e *zerolog.Event) {
+	f(e)
+}
+
+// MarshalZerologArray implements zerolog.LogArrayMarshaler.
+func (f LogArrayMarshalerFunc) MarshalZerologArray(e *zerolog.Array) {
+	f(e)
+}
+
+// MarshalZerologObject implements zerolog.LogObjectMarshaler.
+//
+// It marshals the StructuredError into the given zerolog.Event.
+//
+// If the receiver is nil, it adds a single field to the event with the key "message"
+// and the value nilValue.
+//
+// Otherwise, it will have the following attributes:
+//   - Message
+//   - Tags
+//   - Attrs
+//   - Errors
+//   - Stack.
+//
+// Usage must be with zerolog.Event.Interface or zerolog.Event.Object.
+func (receiver *StructuredError) MarshalZerologObject(event *zerolog.Event) {
+	if receiver == nil {
+		event.Str(messageKey, nilValue)
+
+		return
+	}
+
+	event.Str(messageKey, cmpOr(receiver.Message, nilValue))
+
+	if len(receiver.Tags) > zero {
+		sliceToZerolog(event, tagsKey, receiver.Tags)
+	}
+
+	if len(receiver.Attrs) > zero {
+		sliceToZerolog(event, attrsKey, receiver.Attrs)
+	}
+
+	if len(receiver.Errors) > zero {
+		target := normalizerTarget{
+			errs: make([]error, zero, len(receiver.Errors)),
+		}
+		normalizeErrors(zero, &target, receiver.Errors...)
+
+		sliceToZerolog(event, errorsKey, target.errs)
+	}
+
+	if len(receiver.Stack) > zero {
+		sliceToZerolog(event, stackKey, strings.Split(string(receiver.Stack), newLine))
+	}
+}
+
+// MarshalZerologObject implements zerolog.LogObjectMarshaler.
+//
+// It marshals the Attr into the given zerolog.Event.
+//
+// If the receiver is nil, it adds a single field to the event with the key nilValue
+// and the value nilValue.
+//
+// Otherwise, it will have the following attributes:
+//   - Key: the receiver's key, or nilValue if the receiver is nil.
+//   - Value: the receiver's value, or ignored if the receiver is nil.
+//
+// Usage must be with zerolog.Event.Interface or zerolog.Event.Object.
+//
+//nolint:forcetypeassert,errcheck // XXXType helpers avoid using reflection
+func (receiver *Attr) MarshalZerologObject(event *zerolog.Event) {
+	if receiver == nil {
+		event.Str(nilValue, nilValue)
+
+		return
+	}
+
+	switch receiver.Type {
+	case AnyType:
+		event.Interface(receiver.Key, receiver.Value)
+	case ObjectType:
+		sliceToZerolog(event, receiver.Key, receiver.Value.([]Attr))
+	case BoolType:
+		event.Bool(receiver.Key, receiver.Value.(bool))
+	case BoolsType:
+		event.Bools(receiver.Key, receiver.Value.([]bool))
+	case TimeType:
+		event.Time(receiver.Key, receiver.Value.(time.Time))
+	case TimesType:
+		event.Times(receiver.Key, receiver.Value.([]time.Time))
+	case DurationType:
+		event.Dur(receiver.Key, receiver.Value.(time.Duration))
+	case DurationsType:
+		event.Durs(receiver.Key, receiver.Value.([]time.Duration))
+	case IntType:
+		event.Int(receiver.Key, receiver.Value.(int))
+	case IntsType:
+		event.Ints(receiver.Key, receiver.Value.([]int))
+	case Int64Type:
+		event.Int64(receiver.Key, receiver.Value.(int64))
+	case Int64sType:
+		event.Ints64(receiver.Key, receiver.Value.([]int64))
+	case Uint64Type:
+		event.Uint64(receiver.Key, receiver.Value.(uint64))
+	case Uint64sType:
+		event.Uints64(receiver.Key, receiver.Value.([]uint64))
+	case Float64Type:
+		event.Float64(receiver.Key, receiver.Value.(float64))
+	case Float64sType:
+		event.Floats64(receiver.Key, receiver.Value.([]float64))
+	case StringType:
+		event.Str(receiver.Key, receiver.Value.(string))
+	case StringsType:
+		event.Strs(receiver.Key, receiver.Value.([]string))
+	default:
+		event.Interface(receiver.Key, receiver.Value)
+	}
+}
+
+// errorToZerolog marshals the error into the given zerolog.Event.
+//
+// If the receiver is nil, it adds a single field to the event with the key "message"
+// and the value nilValue.
+//
+// If the receiver is a *StructuredError, it marshals the
+// *StructuredError into the event.
+//
+// If the receiver is neither nil nor a *StructuredError, it adds a single field to the event with the key "message"
+// and the value of the receiver's Error() method, or nilValue if the receiver is nil.
+func errorToZerolog(event *zerolog.Event, err error) {
+	var value *StructuredError
+	switch {
+	case err == nil:
+		event.Str(messageKey, nilValue)
+	case stderrors.As(err, &value):
+		value.MarshalZerologObject(event)
+	default:
+		errStr := strings.TrimSpace(err.Error())
+		event.Str(messageKey, cmpOr(errStr, nilValue))
+	}
+}
+
+// sliceToZerolog marshals the slice into the given zerolog.Event.
+//
+// If the slice is empty, it adds a single field to the event with the key and an empty array.
+//
+// If the slice is of type []Attr, it marshals each *Attr into the event.
+//
+// If the slice is of type []error, it marshals each error into the event.
+//
+// If the slice is of type []string, it trims each string and marshals the trimmed strings into the event.
+//
+// Otherwise, it marshals the slice into the event as an array of interfaces.
+func sliceToZerolog[T any](event *zerolog.Event, key string, slice []T) {
+	if len(slice) == zero {
+		event.Array(key, LogArrayMarshalerFunc(func(*zerolog.Array) {}))
+
+		return
+	}
+
+	switch values := any(slice).(type) {
+	case []Attr:
+		event.Object(
+			key,
+			LogObjectMarshalerFunc(
+				func(eventObj *zerolog.Event) {
+					for _, attr := range values {
+						attr.MarshalZerologObject(eventObj)
+					}
+				},
+			),
+		)
+	case []error:
+		event.Array(
+			key,
+			LogArrayMarshalerFunc(
+				func(eventArr *zerolog.Array) {
+					for _, value := range values {
+						eventArr.Object(
+							LogObjectMarshalerFunc(
+								func(eventObj *zerolog.Event) {
+									errorToZerolog(eventObj, value)
+								},
+							),
+						)
+					}
+				},
+			),
+		)
+	case []string:
+		event.Array(
+			key,
+			LogArrayMarshalerFunc(
+				func(eventArr *zerolog.Array) {
+					for _, value := range values {
+						eventArr.Str(strings.TrimSpace(value))
+					}
+				},
+			),
+		)
+	default:
+		event.Array(
+			key,
+			LogArrayMarshalerFunc(
+				func(eventArr *zerolog.Array) {
+					for _, value := range slice {
+						eventArr.Interface(value)
+					}
+				},
+			),
+		)
+	}
+}
