@@ -434,7 +434,7 @@ func TestGenerateFile(t *testing.T) {
 
 				// given: a generator with templates and target directory
 				gen := New()
-				gen.TargetDir = t.TempDir()
+				gen.OutputDir = t.TempDir()
 				test.setupGen(gen)
 
 				// when: generating a file
@@ -447,7 +447,7 @@ func TestGenerateFile(t *testing.T) {
 					assert.NoError(t, err)
 
 					if test.validateFile != nil {
-						outputPath := filepath.Join(gen.TargetDir, test.outputName)
+						outputPath := filepath.Join(gen.OutputDir, test.outputName)
 						test.validateFile(t, outputPath)
 					}
 				}
@@ -544,7 +544,7 @@ func TestGenerateFormat(t *testing.T) {
 
 				// given: a generator with specific test generation level
 				gen := New()
-				gen.TargetDir = t.TempDir()
+				gen.OutputDir = t.TempDir()
 				gen.TestGenLevel = test.testGenLevel
 				gen.data.PackageName = "testpkg"
 				test.setupGen(gen)
@@ -559,7 +559,7 @@ func TestGenerateFormat(t *testing.T) {
 					assert.NoError(t, err)
 
 					for _, expectedFile := range test.expectFiles {
-						filePath := filepath.Join(gen.TargetDir, expectedFile)
+						filePath := filepath.Join(gen.OutputDir, expectedFile)
 						_, err := os.Stat(filePath)
 						assert.NoError(t, err, "expected file %s to exist", expectedFile)
 					}
@@ -581,7 +581,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "successful_run_with_defaults",
 			setupGen: func(gen *Generator) {
-				gen.TargetDir = t.TempDir()
+				gen.OutputDir = t.TempDir()
 				gen.Formats = []string{}
 			},
 			expectError: false,
@@ -589,7 +589,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "successful_run_with_formats",
 			setupGen: func(gen *Generator) {
-				gen.TargetDir = t.TempDir()
+				gen.OutputDir = t.TempDir()
 				gen.Formats = nil // Will trigger discovery
 			},
 			expectError: false,
@@ -597,7 +597,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "invalid_target_directory",
 			setupGen: func(gen *Generator) {
-				gen.TargetDir = string([]byte{0})
+				gen.OutputDir = string([]byte{0})
 			},
 			expectError: true,
 		},
@@ -622,6 +622,213 @@ func TestRun(t *testing.T) {
 					assert.Error(t, err)
 				} else {
 					assert.NoError(t, err)
+				}
+			},
+		)
+	}
+}
+
+// TestExportTemplates tests the exportTemplates method.
+func TestExportTemplates(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		setupGen         func(*Generator)
+		validateExport   func(*testing.T, string)
+		name             string
+		expectError      bool
+		minExpectedFiles int
+	}{
+		{
+			name: "successful_export_to_new_directory",
+			setupGen: func(gen *Generator) {
+				gen.ExportDir = filepath.Join(t.TempDir(), "templates")
+			},
+			expectError:      false,
+			minExpectedFiles: 1,
+			validateExport: func(t *testing.T, exportDir string) {
+				t.Helper()
+
+				// Verify directory was created
+				info, err := os.Stat(exportDir)
+				require.NoError(t, err)
+				assert.True(t, info.IsDir())
+
+				// Verify at least some template files exist
+				entries, err := os.ReadDir(exportDir)
+				require.NoError(t, err)
+				assert.NotEmpty(t, entries)
+
+				// Verify files have .tmpl extension
+				for _, entry := range entries {
+					assert.Equal(t, ".tmpl", filepath.Ext(entry.Name()), "expected .tmpl file, got %s", entry.Name())
+				}
+			},
+		},
+		{
+			name: "successful_export_to_existing_directory",
+			setupGen: func(gen *Generator) {
+				dir := t.TempDir()
+				gen.ExportDir = dir
+			},
+			expectError:      false,
+			minExpectedFiles: 1,
+			validateExport: func(t *testing.T, exportDir string) {
+				t.Helper()
+
+				entries, err := os.ReadDir(exportDir)
+				require.NoError(t, err)
+				assert.NotEmpty(t, entries)
+			},
+		},
+		{
+			name: "export_creates_nested_directory",
+			setupGen: func(gen *Generator) {
+				gen.ExportDir = filepath.Join(t.TempDir(), "nested", "path", "templates")
+			},
+			expectError:      false,
+			minExpectedFiles: 1,
+			validateExport: func(t *testing.T, exportDir string) {
+				t.Helper()
+
+				info, err := os.Stat(exportDir)
+				require.NoError(t, err)
+				assert.True(t, info.IsDir())
+			},
+		},
+		{
+			name: "export_overwrites_existing_files",
+			setupGen: func(gen *Generator) {
+				dir := t.TempDir()
+				gen.ExportDir = dir
+
+				// Create a pre-existing file
+				existingFile := filepath.Join(dir, "error.tmpl")
+				err := os.WriteFile(existingFile, []byte("old content"), 0o600)
+				require.NoError(t, err)
+			},
+			expectError:      false,
+			minExpectedFiles: 1,
+			validateExport: func(t *testing.T, exportDir string) {
+				t.Helper()
+
+				// Verify the file was overwritten with new content
+				errorTmpl := filepath.Join(exportDir, "error.tmpl")
+				content, err := os.ReadFile(errorTmpl) //nolint:gosec // security is not a concern here
+				require.NoError(t, err)
+				assert.NotEqual(t, "old content", string(content))
+				assert.NotEmpty(t, content)
+			},
+		},
+		{
+			name: "invalid_export_directory",
+			setupGen: func(gen *Generator) {
+				gen.ExportDir = string([]byte{0})
+			},
+			expectError: true,
+		},
+		{
+			name: "verify_file_permissions",
+			setupGen: func(gen *Generator) {
+				gen.ExportDir = t.TempDir()
+			},
+			expectError:      false,
+			minExpectedFiles: 1,
+			validateExport: func(t *testing.T, exportDir string) {
+				t.Helper()
+
+				entries, err := os.ReadDir(exportDir)
+				require.NoError(t, err)
+				require.NotEmpty(t, entries)
+
+				// Check that files were created successfully
+				firstFile := filepath.Join(exportDir, entries[0].Name())
+				info, err := os.Stat(firstFile)
+				require.NoError(t, err)
+
+				// Verify file is readable
+				assert.False(t, info.IsDir())
+				assert.Positive(t, info.Size())
+			},
+		},
+		{
+			name: "verify_all_embedded_templates_exported",
+			setupGen: func(gen *Generator) {
+				gen.ExportDir = t.TempDir()
+			},
+			expectError:      false,
+			minExpectedFiles: 8, // At least the core templates
+			validateExport: func(t *testing.T, exportDir string) {
+				t.Helper()
+
+				entries, err := os.ReadDir(exportDir)
+				require.NoError(t, err)
+
+				// Verify common templates exist
+				expectedTemplates := []string{"error.tmpl", "wrap.tmpl", "join.tmpl", "common.tmpl"}
+
+				fileNames := make(map[string]bool)
+				for _, entry := range entries {
+					fileNames[entry.Name()] = true
+				}
+
+				for _, expected := range expectedTemplates {
+					assert.True(t, fileNames[expected], "expected template %s to be exported", expected)
+				}
+			},
+		},
+		{
+			name: "verify_template_content_integrity",
+			setupGen: func(gen *Generator) {
+				gen.ExportDir = t.TempDir()
+			},
+			expectError:      false,
+			minExpectedFiles: 1,
+			validateExport: func(t *testing.T, exportDir string) {
+				t.Helper()
+
+				// Read exported error.tmpl
+				errorTmpl := filepath.Join(exportDir, "error.tmpl")
+				content, err := os.ReadFile(errorTmpl) //nolint:gosec // security is not a concern here
+				require.NoError(t, err)
+
+				// Verify it's valid template content
+				assert.NotEmpty(t, content)
+				assert.Contains(t, string(content), "{{", "template should contain template syntax")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given: a generator with export directory
+				gen := New()
+				test.setupGen(gen)
+
+				// when: exporting templates
+				err := gen.exportTemplates()
+
+				// then: error should match expectation
+				if test.expectError {
+					assert.Error(t, err)
+				} else {
+					require.NoError(t, err)
+
+					if test.validateExport != nil {
+						test.validateExport(t, gen.ExportDir)
+					}
+
+					if test.minExpectedFiles > 0 {
+						entries, err := os.ReadDir(gen.ExportDir)
+						require.NoError(t, err)
+						assert.GreaterOrEqual(t, len(entries), test.minExpectedFiles,
+							"expected at least %d files, got %d", test.minExpectedFiles, len(entries))
+					}
 				}
 			},
 		)

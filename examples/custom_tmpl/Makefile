@@ -1,7 +1,7 @@
 .PHONY: build run clean
 
 generate:
-	@go run github.com/emiliogrv/errors/cmd/errors_generator \
-		-input ./tmpl \
-		-output generated \
+	@go tool -modfile=go.tool.mod errors_generator \
+		-input-dir ./tmpl \
+		-output-dir generated \
 		-formats somelogger,zap

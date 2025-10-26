@@ -25,12 +25,12 @@ setup: ## Setup environment
 .PHONY: generate
 generate: install-tools ## Run generator
 	@echo "Running generator"
-	@"$(GOBIN)/errors_generator" -with-gen-header=false -output pkg/core
-	@"$(GOBIN)/errors_generator" -with-gen-header=false -output pkg/logrus -formats logrus
-	@"$(GOBIN)/errors_generator" -with-gen-header=false -output pkg/slog -formats slog
-	@"$(GOBIN)/errors_generator" -with-gen-header=false -output pkg/zap -formats zap
-	@"$(GOBIN)/errors_generator" -with-gen-header=false -output pkg/zerolog -formats zerolog
-	@"$(GOBIN)/errors_generator" -test-gen strict -with-gen-header=false -output pkg/full -formats all
+	@"$(GOBIN)/errors_generator" -with-gen-header=false -output-dir pkg/core
+	@"$(GOBIN)/errors_generator" -with-gen-header=false -output-dir pkg/logrus -formats logrus
+	@"$(GOBIN)/errors_generator" -with-gen-header=false -output-dir pkg/slog -formats slog
+	@"$(GOBIN)/errors_generator" -with-gen-header=false -output-dir pkg/zap -formats zap
+	@"$(GOBIN)/errors_generator" -with-gen-header=false -output-dir pkg/zerolog -formats zerolog
+	@"$(GOBIN)/errors_generator" -test-gen strict -with-gen-header=false -output-dir pkg/full -formats all
 
 .PHONY: lint
 lint: install-tools ## Run linter

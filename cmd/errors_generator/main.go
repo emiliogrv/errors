@@ -32,12 +32,13 @@ import (
 
 type (
 	Generator struct {
-		UserTemplateDir string
-		TargetDir       string
-		Formats         []string
-		TestGenLevel    string
-		templates       map[string]*template.Template
-		data            TemplateData
+		InputDir     string
+		OutputDir    string
+		ExportDir    string
+		Formats      []string
+		TestGenLevel string
+		templates    map[string]*template.Template
+		data         TemplateData
 	}
 
 	TemplateData struct {
@@ -56,6 +57,7 @@ const (
 	Version = "0.0.1"
 
 	folderPermissions = 0o750
+	filePermissions   = 0o600
 	emptyString       = ""
 
 	zero = 0
@@ -79,12 +81,12 @@ func main() {
 	generator := New()
 
 	flag.StringVar(
-		&generator.UserTemplateDir,
-		"input",
+		&generator.InputDir,
+		"input-dir",
 		emptyString,
 		"Path to user templates directory (optional)",
 	)
-	flag.StringVar(&generator.TargetDir, "output", emptyString, "Output directory for generated files")
+	flag.StringVar(&generator.OutputDir, "output-dir", emptyString, "Output directory for generated files")
 	flag.StringVar(
 		&generator.data.PackageName,
 		"package",
@@ -96,6 +98,12 @@ func main() {
 		"with-gen-header",
 		true,
 		"Include generated message in generated code (default: true)",
+	)
+	flag.StringVar(
+		&generator.ExportDir,
+		"export-dir",
+		emptyString,
+		"Export default templates to the specified directory and exit",
 	)
 	formats := flag.String(
 		"formats",
@@ -112,7 +120,18 @@ func main() {
 		os.Exit(zero)
 	}
 
-	if generator.TargetDir == emptyString {
+	// Handle export-dir flag
+	if generator.ExportDir != emptyString {
+		err := generator.exportTemplates()
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		log.Println("Default templates exported to: " + generator.ExportDir)
+		os.Exit(zero)
+	}
+
+	if generator.OutputDir == emptyString {
 		flag.Usage()
 		os.Exit(one)
 	}
@@ -138,8 +157,8 @@ func (receiver *Generator) Run() error {
 	}
 
 	// Load and override with user templates if specified
-	if receiver.UserTemplateDir != emptyString {
-		err = receiver.loadUserTemplates(receiver.UserTemplateDir)
+	if receiver.InputDir != emptyString {
+		err = receiver.loadUserTemplates(receiver.InputDir)
 		if err != nil {
 			return fmt.Errorf("loading user templates: %w", err)
 		}
@@ -151,7 +170,7 @@ func (receiver *Generator) Run() error {
 	}
 
 	// Create target directory if it doesn't exist
-	err = os.MkdirAll(receiver.TargetDir, folderPermissions)
+	err = os.MkdirAll(receiver.OutputDir, folderPermissions)
 	if err != nil {
 		return fmt.Errorf("creating target directory: %w", err)
 	}
@@ -331,7 +350,7 @@ func (receiver *Generator) generateFile(templateName, outputName string) (err er
 	}
 
 	// Prepare output file
-	outputPath := filepath.Join(receiver.TargetDir, outputName)
+	outputPath := filepath.Join(receiver.OutputDir, outputName)
 
 	outputFile, err := os.Create(outputPath) //nolint:gosec // security is not a concern here
 	if err != nil {
@@ -357,4 +376,43 @@ func (receiver *Generator) hasTemplate(templateName string) bool {
 	_, exists := receiver.templates[templateName]
 
 	return exists
+}
+
+func (receiver *Generator) exportTemplates() error {
+	// Create export directory if it doesn't exist
+	err := os.MkdirAll(receiver.ExportDir, folderPermissions)
+	if err != nil {
+		return fmt.Errorf("creating export directory: %w", err)
+	}
+
+	// Read all embedded templates
+	entries, err := fs.ReadDir(internaltemplate.DefaultTemplates, ".")
+	if err != nil {
+		return fmt.Errorf("reading embedded templates: %w", err)
+	}
+
+	// Export each template file
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+
+		// Read template content from embedded FS
+		content, errRF := fs.ReadFile(internaltemplate.DefaultTemplates, name)
+		if errRF != nil {
+			return fmt.Errorf("reading template %s: %w", name, errRF)
+		}
+
+		// Write to export directory
+		outputPath := filepath.Join(receiver.ExportDir, name)
+
+		errW := os.WriteFile(outputPath, content, filePermissions)
+		if errW != nil {
+			return fmt.Errorf("writing template %s: %w", name, errW)
+		}
+	}
+
+	return nil
 }

@@ -73,14 +73,14 @@ The library supports **custom template generation**, allowing you to:
 
 1. **Generate your own logger integrations** by providing custom templates
 2. **Override default templates** to customize behavior
-3. **Add new functionality** by simply using the `-input` flag with your template directory
+3. **Add new functionality** by simply using the `-input-dir` flag with your template directory
 
 Example:
 
 ```bash
 go run github.com/emiliogrv/errors/cmd/errors_generator \
-    -input ./my-templates \
-    -output ./generated \
+    -input-dir ./my-templates \
+    -output-dir ./generated \
     -formats mylogger,zap
 ```
 
@@ -197,8 +197,8 @@ Generate code:
 
 ```bash
 go run github.com/emiliogrv/errors/cmd/errors_generator \
-    -input ./tmpl \
-    -output ./generated \
+    -input-dir ./tmpl \
+    -output-dir ./generated \
     -formats mylogger
 ```
 
@@ -239,8 +239,8 @@ You can **override any default template** by providing a template with the same 
 ```bash
 # Override the default zap.tmpl with your custom version
 go run github.com/emiliogrv/errors/cmd/errors_generator \
-    -input ./my-templates \
-    -output ./generated \
+    -input-dir ./my-templates \
+    -output-dir ./generated \
     -formats zap
 ```
 
@@ -258,10 +258,12 @@ Options:
         Comma-separated list of formats to generate, or 'all' to generate all formats (default: core)
   -help
         Show this help message
-  -input string
+  -input-dir string
         Path to user templates directory (optional)
-  -output string
+  -output-dir string
         Output directory for generated files
+  -export-dir string
+        Export default templates to the specified directory and exit
   -package string
         Package name for generated code (default: errors) (default "errors")
   -test-gen string
@@ -273,28 +275,31 @@ Options:
 ### Examples
 
 ```bash
+# Export default templates for customization
+go run github.com/emiliogrv/errors/cmd/errors_generator -export-dir ./my-templates
+
 # Generate core templates only
-go run github.com/emiliogrv/errors/cmd/errors_generator -output ./pkg/core
+go run github.com/emiliogrv/errors/cmd/errors_generator -output-dir ./pkg/core
 
 # Generate with Zap support
 go run github.com/emiliogrv/errors/cmd/errors_generator \
-    -output ./pkg/zap \
+    -output-dir ./pkg/zap \
     -formats zap
 
 # Generate all available formats
 go run github.com/emiliogrv/errors/cmd/errors_generator \
-    -output ./pkg/full \
+    -output-dir ./pkg/full \
     -formats all
 
 # Generate with custom templates
 go run github.com/emiliogrv/errors/cmd/errors_generator \
-    -input ./my-templates \
-    -output ./generated \
+    -input-dir ./my-templates \
+    -output-dir ./generated \
     -formats mylogger,zap
 
 # Generate with tests
 go run github.com/emiliogrv/errors/cmd/errors_generator \
-    -output ./pkg/full \
+    -output-dir ./pkg/full \
     -formats all \
     -test-gen strict
 ```
