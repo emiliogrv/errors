@@ -183,6 +183,13 @@ func (receiver *Generator) Run() error {
 		}
 	}
 
+	if receiver.TestGenLevel != TestGenNone {
+		err = receiver.generateFile("compatibility_test.tmpl", "compatibility_test.go")
+		if err != nil {
+			return fmt.Errorf("generating compatibility test file: %w", err)
+		}
+	}
+
 	return nil
 }
 

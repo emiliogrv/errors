@@ -9,3 +9,13 @@ repos:
         name: lint-fix
         alias: lint-fix
         args: [ make, lint-fix ]
+
+  - repo: https://github.com/hukkin/mdformat
+    rev: 1.0.0
+    hooks:
+      - id: mdformat
+        additional_dependencies:
+          - mdformat-gfm
+          - mdformat-gofmt
+          - mdformat-shfmt
+          - mdformat-toc

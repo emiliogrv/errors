@@ -2,11 +2,60 @@
 
 [![Go Version](https://img.shields.io/badge/Go-%3E%3D%201.18-blue)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-BSD--3--Clause-green)](LICENSE)
+
 </div>
 
-## Overview
+<!-- mdformat-toc start --slug=github --maxlevel=6 --minlevel=1 -->
 
-This **ready-to-use** library provides **structured error handling** for Go applications, designed as a complete drop-in replacement for the standard `errors` package. It extends standard error functionality with:
+- [Overview](#overview)
+- [Performance](#performance)
+- [Features](#features)
+  - [Core Functionality](#core-functionality)
+  - [Partial Imports](#partial-imports)
+  - [Custom Template Generation](#custom-template-generation)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Basic Error Creation](#basic-error-creation)
+  - [Error Wrapping](#error-wrapping)
+  - [Logging Integration](#logging-integration)
+    - [Full Import Example](#full-import-example)
+    - [Partial Import Example](#partial-import-example)
+  - [Custom Template Example](#custom-template-example)
+- [Templates](#templates)
+  - [Core Templates](#core-templates)
+  - [Logger Templates](#logger-templates)
+  - [Template Overriding](#template-overriding)
+- [Generator Usage](#generator-usage)
+  - [Examples](#examples)
+- [API Reference](#api-reference)
+  - [Core Types](#core-types)
+    - [`StructuredError`](#structurederror)
+    - [`Attr`](#attr)
+  - [Core Functions](#core-functions)
+  - [Attribute Helpers](#attribute-helpers)
+  - [Methods](#methods)
+    - [`*StructuredError` Methods](#structurederror-methods)
+  - [Configuration](#configuration)
+- [Drop-in Replacement Compatibility](#drop-in-replacement-compatibility)
+  - [Known Differences](#known-differences)
+    - [1. Text Loss with Nested `fmt.Errorf` Wrappers](#1-text-loss-with-nested-fmterrorf-wrappers)
+    - [2. String Output Format](#2-string-output-format)
+    - [3. `Unwrap()` and Serialization Behavior](#3-unwrap-and-serialization-behavior)
+  - [Compatibility Testing](#compatibility-testing)
+- [API Stability](#api-stability)
+- [Examples](#examples-1)
+- [Contributing](#contributing)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
+
+<!-- mdformat-toc end -->
+
+______________________________________________________________________
+
+## Overview<a name="overview"></a>
+
+This **ready-to-use** library provides **structured error handling** for Go applications, designed as a complete drop-in
+replacement for the standard `errors` package. It extends standard error functionality with:
 
 - **Structured attributes** for rich error context
 - **Error wrapping and joining** with full compatibility with `errors.Is`, `errors.As`, and `errors.Join`
@@ -15,9 +64,10 @@ This **ready-to-use** library provides **structured error handling** for Go appl
 - **Direct integration** with popular logging frameworks (Zap, Zerolog, Logrus, slog)
 - **Customizable code generation** for your own logging frameworks
 
-## Performance
+## Performance<a name="performance"></a>
 
-This library is designed with **performance as a core principle**. The primary goal is to provide meaningful, structured error messages with **maximum performance** by:
+This library is designed with **performance as a core principle**. The primary goal is to provide meaningful, structured
+error messages with **maximum performance** by:
 
 - **Avoiding reflection** wherever possible - type-safe attribute helpers eliminate runtime reflection overhead
 - **Zero-allocation string building** for common error formatting paths
@@ -25,28 +75,30 @@ This library is designed with **performance as a core principle**. The primary g
 - **Lazy evaluation** - error details are only formatted when actually logged or serialized
 - **Minimal allocations** - careful memory management to reduce GC pressure
 
-## Features
+## Features<a name="features"></a>
 
-### Core Functionality
+### Core Functionality<a name="core-functionality"></a>
 
-The library maintains full compatibility with Go's standard `errors` package while adding powerful structured error handling capabilities:
+The library maintains full compatibility with Go's standard `errors` package while adding powerful structured error
+handling capabilities:
 
 ```go
 import errors "github.com/emiliogrv/errors/pkg/full"
 
 err := errors.New("database connection failed").
-    WithAttrs(
-        errors.String("host", "localhost"),
-        errors.Int("port", 5432),
-        errors.Duration("timeout", 30*time.Second),
-    ).
-    WithTags("database", "critical").
-    WithStack(debug.Stack())
+WithAttrs(
+errors.String("host", "localhost"),
+errors.Int("port", 5432),
+errors.Duration("timeout", 30*time.Second),
+).
+WithTags("database", "critical").
+WithStack(debug.Stack())
 ```
 
-### Partial Imports
+### Partial Imports<a name="partial-imports"></a>
 
-**Import only what you need!** To avoid pulling all logging framework dependencies into your `go.mod`, you can import specific logger packages:
+**Import only what you need!** To avoid pulling all logging framework dependencies into your `go.mod`, you can import
+specific logger packages:
 
 ```go
 // Import only Zap support
@@ -67,13 +119,13 @@ import errors "github.com/emiliogrv/errors/pkg/core"
 
 Each partial import includes the core templates plus the specific logger integration, keeping your dependencies minimal.
 
-### Custom Template Generation
+### Custom Template Generation<a name="custom-template-generation"></a>
 
 The library supports **custom template generation**, allowing you to:
 
 1. **Generate your own logger integrations** by providing custom templates
-2. **Override default templates** to customize behavior
-3. **Add new functionality** by simply using the `-input-dir` flag with your template directory
+1. **Override default templates** to customize behavior
+1. **Add new functionality** by simply using the `-input-dir` flag with your template directory
 
 Example:
 
@@ -84,17 +136,18 @@ go run github.com/emiliogrv/errors/cmd/errors_generator \
     -formats mylogger,zap
 ```
 
-**Core templates are always generated** regardless of which formats you specify, ensuring base functionality is always available.
+**Core templates are always generated** regardless of which formats you specify, ensuring base functionality is always
+available.
 
-## Installation
+## Installation<a name="installation"></a>
 
 ```bash
 go get github.com/emiliogrv/errors
 ```
 
-## Usage
+## Usage<a name="usage"></a>
 
-### Basic Error Creation
+### Basic Error Creation<a name="basic-error-creation"></a>
 
 ```go
 import errors "github.com/emiliogrv/errors/pkg/full"
@@ -104,78 +157,78 @@ err := errors.New("something went wrong")
 
 // Error with attributes
 err := errors.New("failed to process request").
-    WithAttrs(
-        errors.String("user_id", "12345"),
-        errors.Int("retry_count", 3),
-        errors.Bool("recoverable", true),
-    )
+WithAttrs(
+errors.String("user_id", "12345"),
+errors.Int("retry_count", 3),
+errors.Bool("recoverable", true),
+)
 ```
 
-### Error Wrapping
+### Error Wrapping<a name="error-wrapping"></a>
 
 ```go
 // Wrap errors with context
 if err := doSomething(); err != nil {
-    return errors.New("operation failed").
-        WithErrors(err).
-        WithAttrs(errors.String("operation", "doSomething"))
+	return errors.New("operation failed").
+		WithErrors(err).
+		WithAttrs(errors.String("operation", "doSomething"))
 }
 
 // Join multiple errors
 err := errors.Join(
-    errors.New("validation failed"),
-    errors.New("missing required field: email"),
-    errors.New("missing required field: name"),
+	errors.New("validation failed"),
+	errors.New("missing required field: email"),
+	errors.New("missing required field: name"),
 )
 ```
 
-### Logging Integration
+### Logging Integration<a name="logging-integration"></a>
 
-#### Full Import Example
+#### Full Import Example<a name="full-import-example"></a>
 
 ```go
 import (
-    "go.uber.org/zap"
-    errors "github.com/emiliogrv/errors/pkg/full"
+	errors "github.com/emiliogrv/errors/pkg/full"
+	"go.uber.org/zap"
 )
 
 func main() {
-    err := errors.New("operation failed").
-        WithAttrs(errors.Int("code", 500))
+	err := errors.New("operation failed").
+		WithAttrs(errors.Int("code", 500))
 
-    // Zap
-    logger, _ := zap.NewProduction()
-    logger.Error("error occurred", zap.Any("err", err))
+	// Zap
+	logger, _ := zap.NewProduction()
+	logger.Error("error occurred", zap.Any("err", err))
 
-    // JSON marshaling
-    jsonData, _ := json.Marshal(err)
+	// JSON marshaling
+	jsonData, _ := json.Marshal(err)
 
-    // Logrus
-    logrus.WithFields(logrus.Fields{
-            "err": err.(*errors.StructuredError).MarshalLogrusFields(),
-        }).
-        Error("error occurred")
+	// Logrus
+	logrus.WithFields(logrus.Fields{
+		"err": err.(*errors.StructuredError).MarshalLogrusFields(),
+	}).
+		Error("error occurred")
 }
 ```
 
-#### Partial Import Example
+#### Partial Import Example<a name="partial-import-example"></a>
 
 ```go
 import (
-    "go.uber.org/zap"
-    errors "github.com/emiliogrv/errors/pkg/zap" // Only Zap dependency
+	errors "github.com/emiliogrv/errors/pkg/zap" // Only Zap dependency
+	"go.uber.org/zap"
 )
 
 func main() {
-    err := errors.New("operation failed").
-        WithAttrs(errors.Int("code", 500))
+	err := errors.New("operation failed").
+		WithAttrs(errors.Int("code", 500))
 
-    logger, _ := zap.NewProduction()
-    logger.Error("error occurred", zap.Any("err", err))
+	logger, _ := zap.NewProduction()
+	logger.Error("error occurred", zap.Any("err", err))
 }
 ```
 
-### Custom Template Example
+### Custom Template Example<a name="custom-template-example"></a>
 
 Create your custom template (e.g., `tmpl/mylogger.tmpl`):
 
@@ -202,14 +255,14 @@ go run github.com/emiliogrv/errors/cmd/errors_generator \
     -formats mylogger
 ```
 
-## Templates
+## Templates<a name="templates"></a>
 
-### Core Templates
+### Core Templates<a name="core-templates"></a>
 
 Core templates are **always generated** and provide the fundamental error handling functionality:
 
 | Template    | Description                                                           |
-|-------------|-----------------------------------------------------------------------|
+| ----------- | --------------------------------------------------------------------- |
 | `attr.go`   | Type-safe attribute helpers (String, Int, Bool, Time, Duration, etc.) |
 | `common.go` | Common utilities and depth control for marshaling                     |
 | `error.go`  | Core `StructuredError` type and basic methods                         |
@@ -219,12 +272,12 @@ Core templates are **always generated** and provide the fundamental error handli
 | `string.go` | String formatting and `Error()` method implementation                 |
 | `wrap.go`   | `Unwrap`, `Is`, and `As` methods for error wrapping                   |
 
-### Logger Templates
+### Logger Templates<a name="logger-templates"></a>
 
 Additional templates for specific logging framework integrations:
 
 | Package       | Templates                            | Dependencies                 |
-|---------------|--------------------------------------|------------------------------|
+| ------------- | ------------------------------------ | ---------------------------- |
 | `pkg/full`    | Core + Zap + Zerolog + Logrus + slog | All logger dependencies      |
 | `pkg/zap`     | Core + Zap                           | `go.uber.org/zap`            |
 | `pkg/zerolog` | Core + Zerolog                       | `github.com/rs/zerolog`      |
@@ -232,7 +285,7 @@ Additional templates for specific logging framework integrations:
 | `pkg/slog`    | Core + slog                          | Standard library only        |
 | `pkg/core`    | Core only                            | No external dependencies     |
 
-### Template Overriding
+### Template Overriding<a name="template-overriding"></a>
 
 You can **override any default template** by providing a template with the same name in your input directory:
 
@@ -246,7 +299,7 @@ go run github.com/emiliogrv/errors/cmd/errors_generator \
 
 If `my-templates/zap.tmpl` exists, it will replace the built-in Zap template.
 
-## Generator Usage
+## Generator Usage<a name="generator-usage"></a>
 
 The code generator supports various options:
 
@@ -272,7 +325,7 @@ Options:
         Include generated message in generated code (default: true) (default true)
 ```
 
-### Examples
+### Examples<a name="examples"></a>
 
 ```bash
 # Export default templates for customization
@@ -304,33 +357,33 @@ go run github.com/emiliogrv/errors/cmd/errors_generator \
     -test-gen strict
 ```
 
-## API Reference
+## API Reference<a name="api-reference"></a>
 
-### Core Types
+### Core Types<a name="core-types"></a>
 
-#### `StructuredError`
+#### `StructuredError`<a name="structurederror"></a>
 
 ```go
 type StructuredError struct {
-    Message string // Primary error message
-    Attrs   []Attr // Structured attributes
-    Errors  []error  // Wrapped errors
-    Tags    []string // Categorical labels
-    Stack   []byte // Stack trace (optional)
+	Message string   // Primary error message
+	Attrs   []Attr   // Structured attributes
+	Errors  []error  // Wrapped errors
+	Tags    []string // Categorical labels
+	Stack   []byte   // Stack trace (optional)
 }
 ```
 
-#### `Attr`
+#### `Attr`<a name="attr"></a>
 
 ```go
 type Attr struct {
-    Key   string
-    Value any
-    Type  Type
+	Key   string
+	Value any
+	Type  Type
 }
 ```
 
-### Core Functions
+### Core Functions<a name="core-functions"></a>
 
 - `New(message string) *StructuredError` - Create a new structured error
 - `Join(errs ...error) error` - Join multiple errors (nil-safe)
@@ -339,7 +392,7 @@ type Attr struct {
 - `As(err error, target any) bool` - Type assertion (alias to `errors.As`)
 - `Unwrap(err error) error` - Unwrap single error (alias to `errors.Unwrap`)
 
-### Attribute Helpers
+### Attribute Helpers<a name="attribute-helpers"></a>
 
 Type-safe helpers for common types:
 
@@ -356,9 +409,9 @@ Type-safe helpers for common types:
 
 Each helper also has a plural version (e.g., `Ints`, `Strings`, `Bools`) for slices.
 
-### Methods
+### Methods<a name="methods"></a>
 
-#### `*StructuredError` Methods
+#### `*StructuredError` Methods<a name="structurederror-methods"></a>
 
 - `WithAttrs(attrs ...Attr) *StructuredError` - Add attributes
 - `WithErrors(errors ...error) *StructuredError` - Set wrapped errors
@@ -371,7 +424,7 @@ Each helper also has a plural version (e.g., `Ints`, `Strings`, `Bools`) for sli
 - `MarshalJSON() ([]byte, error)` - JSON marshaling
 - `UnmarshalJSON(data []byte) error` - JSON unmarshaling
 
-### Configuration
+### Configuration<a name="configuration"></a>
 
 ```go
 // Set maximum depth for error marshaling (default: 100)
@@ -381,13 +434,141 @@ errors.SetMaxDepthMarshal(depth int)
 errors.MaxDepthMarshal() int
 ```
 
-## API Stability
+## Drop-in Replacement Compatibility<a name="drop-in-replacement-compatibility"></a>
 
-⚠️ **Pre-1.0 Notice**: The library API is essentially complete but may undergo changes before version 1.0. While we strive to maintain backward compatibility, breaking changes may occur in minor versions (0.x.y) until the 1.0 release.
+This library is designed as a **complete drop-in replacement** for Go's standard `errors` package. You can replace:
+
+```go
+import "errors"
+```
+
+with:
+
+```go
+import errors "github.com/emiliogrv/errors/pkg/full"
+```
+
+And your existing code will continue to work as expected.
+
+### Known Differences<a name="known-differences"></a>
+
+While this library maintains full API compatibility with the standard `errors` package, there are some behavioral
+differences to be aware of:
+
+#### 1. Text Loss with Nested `fmt.Errorf` Wrappers<a name="1-text-loss-with-nested-fmterrorf-wrappers"></a>
+
+When using `fmt.Errorf` to wrap a `StructuredError`, the text is preserved in the `fmt.Errorf` wrapper. However, **if
+that wrapped error is then added to another `StructuredError` via `WithErrors()` or `Join()`**, the `fmt.Errorf` wrapper
+text is lost because the marshaling extracts the inner `StructuredError` directly:
+
+```go
+base := errors.New("base error")
+wrapped := fmt.Errorf("text example %w", base)
+
+// Text is preserved when calling wrapped.Error() directly:
+fmt.Println(wrapped.Error()) // Output: "text example (message=base error)"
+
+// But text is lost when nested in another StructuredError:
+nested := errors.New("outer").WithErrors(wrapped)
+fmt.Println(nested.Error())
+// Output: (message=outer),
+//         (errors=[
+//             (message=base error)
+//         ])
+// The "text example" part is lost
+```
+
+**Workaround**: Use structured error capabilities directly instead of mixing `fmt.Errorf` with `WithErrors()`:
+
+```go
+base := errors.New("base error")
+wrapped := errors.New("text example").WithErrors(base)
+// Now "text example" is preserved in the error chain
+```
+
+#### 2. String Output Format<a name="2-string-output-format"></a>
+
+The string representation of errors created with this package may differ from standard errors when using structured
+features:
+
+- **Standard `errors.New()`**: Produces identical output to `errors.New()` from the standard library
+- **With structured features**: Using `WithErrors()`, `WithAttrs()`, etc. produces a different format that includes the
+  structured information
+
+```go
+// These produce identical string output:
+stdErr := stderrors.New("error message")
+customErr := errors.New("error message")
+
+// These produce different string output:
+stdWrapped := fmt.Errorf("wrapper: %w", stderrors.New("base"))
+customWrapped := errors.New("wrapper").WithErrors(errors.New("base"))
+```
+
+#### 3. `Unwrap()` and Serialization Behavior<a name="3-unwrap-and-serialization-behavior"></a>
+
+This package implements the multi-error unwrapper interface (`Unwrap() []error`), while `fmt.Errorf` with `%w`
+implements the single-error unwrapper interface (`Unwrap() error`). The key difference is in how `StructuredError`
+serializes wrapped errors:
+
+- **`fmt.Errorf("text %w", err)` on its own**:
+
+  - Preserves all text when calling `.Error()`
+  - Example: `fmt.Errorf("text example %w", err).Error()` shows `"text example: <err message>"`
+  - Implements single-error unwrapper interface
+
+- **`fmt.Errorf` wrapped in `StructuredError`**:
+
+  - When `StructuredError` serializes the error, it calls `Unwrap()` to extract the inner error
+  - `fmt.Errorf` ignores the wrapping text when unwrapped, returning only the inner error
+  - **Result**: The wrapping text is lost during `StructuredError` serialization
+  - Example: `errors.New("outer").WithErrors(fmt.Errorf("text example %w", err))` loses "text example"
+
+- **`WithErrors()` wrapped errors**:
+
+  - Preserves all text and structure during serialization
+  - Does not lose context when unwrapped by another `StructuredError`
+  - Implements the multi-unwrap interface for error chaining
+  - Maintains full context in both the error chain and string output
+
+For example:
+
+```go
+// fmt.Errorf preserves text on its own
+wrapped1 := fmt.Errorf("text example %w", errors.New("base error"))
+fmt.Println(wrapped1.Error()) // => "text example: base error" ✓
+
+// But text is lost when StructuredError unwraps it
+wrapped2 := errors.New("outer").WithErrors(wrapped1)
+fmt.Println(wrapped2.Error()) // => "(message=outer), (errors=[(message=base error)])" - loses "text example" ✗
+
+// WithErrors preserves all text
+wrapped3 := errors.New("wrapper").WithErrors(errors.New("base error"))
+fmt.Println(wrapped3.Error()) // => "(message=wrapper), (errors=[(message=base error)])" ✓
+```
+
+### Compatibility Testing<a name="compatibility-testing"></a>
+
+The library includes comprehensive compatibility tests to ensure drop-in replacement behavior. See [
+`pkg/full/compatibility_test.go`](pkg/full/compatibility_test.go) for detailed test cases covering:
+
+- String output comparison between standard and structured errors
+- `errors.Is()` behavior with both error types
+- `errors.As()` behavior for extracting `StructuredError`
+- `errors.Unwrap()` behavior with single and multi-unwrap interfaces
+- `errors.Join()` compatibility
+- Nil error handling
+- `fmt.Errorf` behavior with `%w` verb
+- The known text loss when nesting `fmt.Errorf` wrapped errors in `WithErrors()`
+
+## API Stability<a name="api-stability"></a>
+
+⚠️ **Pre-1.0 Notice**: The library API is essentially complete but may undergo changes before version 1.0. While we
+strive to maintain backward compatibility, breaking changes may occur in minor versions (0.x.y) until the 1.0 release.
 
 Once version 1.0 is released, the API will follow semantic versioning strictly.
 
-## Examples
+## Examples<a name="examples-1"></a>
 
 Complete examples are available in the [examples/](examples/) directory:
 
@@ -395,14 +576,15 @@ Complete examples are available in the [examples/](examples/) directory:
 - [partial import](examples/partial_import/) - Partial import (Zap only)
 - [custom tmpl](examples/custom_tmpl/) - Custom template generation
 
-## Contributing
+## Contributing<a name="contributing"></a>
 
 Contributions are welcome! Please feel free to submit issues or pull requests.
 
-## License
+## License<a name="license"></a>
 
 This project is licensed under the BSD 3-Clause License - see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgments
+## Acknowledgments<a name="acknowledgments"></a>
 
-This library is designed to be a drop-in replacement for Go's standard `errors` package while providing enhanced functionality for modern application development.
+This library is designed to be a drop-in replacement for Go's standard `errors` package while providing enhanced
+functionality for modern application development.
