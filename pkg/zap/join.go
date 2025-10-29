@@ -46,6 +46,12 @@ func JoinIf(errs ...error) error {
 	}
 
 	if errs[zero] != nil {
+		if len(errs) > one {
+			first := errs[zero]
+			copy(errs, errs[one:])
+			errs[len(errs)-one] = first
+		}
+
 		return Join(errs...)
 	}
 
