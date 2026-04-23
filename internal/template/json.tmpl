@@ -152,9 +152,19 @@ func valueToJSON(bytesBuffer *bytes.Buffer, key, value string) {
 	bytesBuffer.WriteString(key)
 	bytesBuffer.WriteString(quote)
 	bytesBuffer.WriteString(colon)
-	bytesBuffer.WriteString(quote)
-	bytesBuffer.WriteString(value)
-	bytesBuffer.WriteString(quote)
+
+	// Properly escape the value using json.Marshal
+	escapedValue, err := json.Marshal(value)
+	if err != nil {
+		// Fallback to original string if marshaling fails
+		bytesBuffer.WriteString(quote)
+		bytesBuffer.WriteString(value)
+		bytesBuffer.WriteString(quote)
+
+		return
+	}
+
+	bytesBuffer.Write(escapedValue)
 }
 
 // errorToJSON writes a JSON encoded value to the provided bytes.Buffer.

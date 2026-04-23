@@ -495,3 +495,172 @@ func TestSliceToJSONWithErrors(t *testing.T) {
 		)
 	}
 }
+
+func TestStructuredErrorMarshalJSONWithSpecialCharacters(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		err          *StructuredError
+		wantContains []string
+		wantErr      bool
+	}{
+		{
+			name:         "given_error_with_json_quotes_in_message_when_marshal_json_then_returns_valid_json",
+			err:          New(`Error: {"key":"value"}`),
+			wantContains: []string{`"message":"Error: {\"key\":\"value\"}"`},
+			wantErr:      false,
+		},
+		{
+			name:         "given_error_with_backslashes_in_message_when_marshal_json_then_returns_valid_json",
+			err:          New(`Error: C:\path\to\file`),
+			wantContains: []string{`"message":"Error: C:\\path\\to\\file"`},
+			wantErr:      false,
+		},
+		{
+			name:         "given_error_with_newlines_in_message_when_marshal_json_then_returns_valid_json",
+			err:          New("Error: Line 1\nLine 2"),
+			wantContains: []string{`"message":"Error: Line 1\nLine 2"`},
+			wantErr:      false,
+		},
+		{
+			name:         "given_error_with_tabs_in_message_when_marshal_json_then_returns_valid_json",
+			err:          New("Error: Column\tValue"),
+			wantContains: []string{`"message":"Error: Column\tValue"`},
+			wantErr:      false,
+		},
+		{
+			name:         "given_error_with_unicode_in_message_when_marshal_json_then_returns_valid_json",
+			err:          New("Error: Unicode test: café"),
+			wantContains: []string{`"message":"Error: Unicode test: café"`},
+			wantErr:      false,
+		},
+		{
+			name:         "given_error_with_complex_json_in_message_when_marshal_json_then_returns_valid_json",
+			err:          New(`Error: {"nested":{"array":[1,2,3],"string":"with \"quotes\""}}`),
+			wantContains: []string{`"message":"Error: {\"nested\":{\"array\":[1,2,3],\"string\":\"with \\\"quotes\\\"\"}}"`},
+			wantErr:      false,
+		},
+	}
+
+	for _, test := range tests {
+		test := test // reinitialize for parallel test
+		t.Run(
+			test.name,
+			func(t *testing.T) {
+				t.Parallel()
+
+				// when
+				got, err := test.err.MarshalJSON()
+
+				// then
+				if test.wantErr {
+					assert.Error(t, err)
+
+					return
+				}
+
+				require.NoError(t, err)
+
+				// Verify the output is valid JSON
+				var parsed map[string]any
+				require.NoError(t, json.Unmarshal(got, &parsed))
+
+				// Check specific content
+				gotStr := string(got)
+
+				for _, want := range test.wantContains {
+					want := want // reinitialize for parallel test
+					assert.Contains(t, gotStr, want)
+				}
+			},
+		)
+	}
+}
+
+func TestStructuredErrorMultipleMarshalUnmarshalCycles(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		message string
+		cycles  int
+	}{
+		{
+			name:    "given_simple_json_when_multiple_cycles_then_preserves_message",
+			message: `{"key":"value"}`,
+			cycles:  5,
+		},
+		{
+			name:    "given_nested_json_when_multiple_cycles_then_preserves_message",
+			message: `{"nested":{"array":[1,2,3],"string":"with \"quotes\""}}`,
+			cycles:  3,
+		},
+		{
+			name:    "given_backslashes_when_multiple_cycles_then_preserves_message",
+			message: `C:\path\to\file`,
+			cycles:  4,
+		},
+		{
+			name:    "given_mixed_special_chars_when_multiple_cycles_then_preserves_message",
+			message: `{"path":"C:\temp\file.txt","message":"Line 1\nLine 2"}`,
+			cycles:  2,
+		},
+		{
+			name:    "given_newlines_and_tabs_when_multiple_cycles_then_preserves_message",
+			message: "Error: Line 1\nLine 2\tTabbed",
+			cycles:  3,
+		},
+		{
+			name:    "given_unicode_when_multiple_cycles_then_preserves_message",
+			message: "Error: Unicode test: café naïve résumé",
+			cycles:  2,
+		},
+	}
+
+	for _, test := range tests {
+		test := test // reinitialize for parallel test
+		t.Run(
+			test.name,
+			func(t *testing.T) {
+				t.Parallel()
+
+				// given
+				original := New(test.message)
+
+				// when - perform multiple marshal/unmarshal cycles
+				current := original
+				for i := 0; i < test.cycles; i++ {
+					// Marshal using standard json package
+					jsonBytes, err := json.Marshal(current)
+					require.NoError(t, err)
+
+					// Verify JSON is valid
+					var parsed map[string]any
+					require.NoError(t, json.Unmarshal(jsonBytes, &parsed))
+
+					// Unmarshal using standard json package
+					var unmarshaled StructuredError
+
+					err = json.Unmarshal(jsonBytes, &unmarshaled)
+					require.NoError(t, err)
+
+					current = &unmarshaled
+				}
+
+				// then - message should be identical to original
+				assert.Equal(t, original.Message, current.Message,
+					"Message should be preserved after %d marshal/unmarshal cycles", test.cycles)
+
+				// Verify final marshal still produces valid JSON
+				finalJSON, err := json.Marshal(current)
+				require.NoError(t, err)
+
+				var finalParsed map[string]any
+				require.NoError(t, json.Unmarshal(finalJSON, &finalParsed))
+
+				assert.Equal(t, current.Message, finalParsed["message"])
+			},
+		)
+	}
+}
