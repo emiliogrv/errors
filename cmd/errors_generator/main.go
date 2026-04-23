@@ -17,8 +17,10 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
+	"go/format"
 	"io/fs"
 	"log"
 	"os"
@@ -26,6 +28,8 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/Masterminds/sprig/v3"
 
 	internaltemplate "github.com/emiliogrv/errors/internal/template"
 )
@@ -176,10 +180,10 @@ func (receiver *Generator) Run() error {
 	}
 
 	// Generate files for each requested format
-	for _, format := range receiver.Formats {
-		err = receiver.generateFormat(format)
+	for _, formatName := range receiver.Formats {
+		err = receiver.generateFormat(formatName)
 		if err != nil {
-			return fmt.Errorf("generating format %s: %w", format, err)
+			return fmt.Errorf("generating format %s: %w", formatName, err)
 		}
 	}
 
@@ -227,15 +231,15 @@ func (receiver *Generator) discoverTemplateFormats() []string {
 	// Collect all formats from templates
 	for name := range receiver.templates {
 		if strings.HasSuffix(name, ".tmpl") && !strings.HasSuffix(name, "_test.tmpl") {
-			format := strings.TrimSuffix(name, ".tmpl")
-			formats[format] = struct{}{}
+			formatName := strings.TrimSuffix(name, ".tmpl")
+			formats[formatName] = struct{}{}
 		}
 	}
 
 	// Convert to slice
 	result := make([]string, zero, len(formats))
-	for format := range formats {
-		result = append(result, format)
+	for formatName := range formats {
+		result = append(result, formatName)
 	}
 
 	return result
@@ -259,7 +263,7 @@ func (receiver *Generator) loadEmbeddedTemplates() error {
 			return fmt.Errorf("reading embedded template %s: %w", name, errRF)
 		}
 
-		tmpl, errN := template.New(name).Parse(string(content))
+		tmpl, errN := template.New(name).Funcs(sprig.FuncMap()).Parse(string(content))
 		if errN != nil {
 			return fmt.Errorf("parsing embedded template %s: %w", name, errN)
 		}
@@ -292,7 +296,7 @@ func (receiver *Generator) loadUserTemplates(dir string) error {
 				return fmt.Errorf("reading user template %s: %w", relPath, err)
 			}
 
-			tmpl, err := template.New(relPath).Parse(string(content))
+			tmpl, err := template.New(relPath).Funcs(sprig.FuncMap()).Parse(string(content))
 			if err != nil {
 				return fmt.Errorf("parsing user template %s: %w", relPath, err)
 			}
@@ -310,15 +314,15 @@ func (receiver *Generator) loadUserTemplates(dir string) error {
 	return nil
 }
 
-func (receiver *Generator) generateFormat(format string) error {
+func (receiver *Generator) generateFormat(formatName string) error {
 	// Generate main file
-	err := receiver.generateFile(format+".tmpl", format+".go")
+	err := receiver.generateFile(formatName+".tmpl", formatName+".go")
 	if err != nil {
 		return fmt.Errorf("generating main file: %w", err)
 	}
 
 	// Handle test file generation based on level
-	testTemplate := format + "_test.tmpl"
+	testTemplate := formatName + "_test.tmpl"
 	hasTestTemplate := receiver.hasTemplate(testTemplate)
 
 	switch receiver.TestGenLevel {
@@ -326,7 +330,7 @@ func (receiver *Generator) generateFormat(format string) error {
 		return nil
 	case TestGenFlex:
 		if hasTestTemplate {
-			err = receiver.generateFile(testTemplate, format+"_test.go")
+			err = receiver.generateFile(testTemplate, formatName+"_test.go")
 			if err != nil {
 				return fmt.Errorf("generating test file: %w", err)
 			}
@@ -336,10 +340,10 @@ func (receiver *Generator) generateFormat(format string) error {
 	case TestGenStrict:
 		if !hasTestTemplate {
 			//nolint:err113 // dynamic is expected
-			return fmt.Errorf("test template not found for format %s (required in strict mode)", format)
+			return fmt.Errorf("test template not found for format %s (required in strict mode)", formatName)
 		}
 
-		err = receiver.generateFile(testTemplate, format+"_test.go")
+		err = receiver.generateFile(testTemplate, formatName+"_test.go")
 		if err != nil {
 			return fmt.Errorf("generating test file: %w", err)
 		}
@@ -356,6 +360,20 @@ func (receiver *Generator) generateFile(templateName, outputName string) (err er
 		return fmt.Errorf("template not found: %s", templateName) //nolint:err113 // dynamic is expected
 	}
 
+	// Execute template to buffer first
+	var buf bytes.Buffer
+
+	err = tmpl.Execute(&buf, receiver.data)
+	if err != nil {
+		return fmt.Errorf("executing template: %w", err)
+	}
+
+	// Format the generated code
+	formatted, err := format.Source(buf.Bytes())
+	if err != nil {
+		return fmt.Errorf("formatting generated code: %w", err)
+	}
+
 	// Prepare output file
 	outputPath := filepath.Join(receiver.OutputDir, outputName)
 
@@ -370,10 +388,10 @@ func (receiver *Generator) generateFile(templateName, outputName string) (err er
 		}
 	}(outputFile)
 
-	// Execute template with data
-	err = tmpl.Execute(outputFile, receiver.data)
+	// Write formatted content to file
+	_, err = outputFile.Write(formatted)
 	if err != nil {
-		return fmt.Errorf("executing template: %w", err)
+		return fmt.Errorf("writing formatted output: %w", err)
 	}
 
 	return nil

@@ -199,7 +199,7 @@ func normalizeErrors(depth int, target *normalizerTarget, errs ...error) {
 // cmpOr returns the first of its arguments that is not equal to the zero value.
 // If no argument is non-zero, it returns the zero value.
 // This is here since cmp.Or is not available in Go 1.18.
-//nolint:ireturn // this is a helper function
+//nolint:ireturn,nolintlint // this is a helper function
 func cmpOr[T comparable](vals ...T) T {
 	var def T
 	for _, val := range vals {

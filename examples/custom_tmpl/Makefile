@@ -1,7 +1,10 @@
 .PHONY: build run clean
 
 generate:
-	@go tool -modfile=go.tool.mod errors_generator \
-		-input-dir ./tmpl \
-		-output-dir generated \
+	@rm -rf ./generated/*
+	@cd tools && \
+		go mod tidy && \
+		go tool errors_generator \
+		-input-dir ../tmpl \
+		-output-dir ../generated \
 		-formats somelogger,zap

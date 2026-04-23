@@ -83,7 +83,7 @@ func (receiver *StructuredError) WithTags(tags ...string) *StructuredError {
 
 // WithErrors assigns the given errors to the receiver and returns it for chaining.
 func (receiver *StructuredError) WithErrors(errors ...error) *StructuredError {
-    receiver.Errors = errors
+	receiver.Errors = errors
 
 	return receiver
 }

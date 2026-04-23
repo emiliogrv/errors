@@ -25,6 +25,7 @@ setup: ## Setup environment
 .PHONY: generate
 generate: install-tools ## Run generator
 	@echo "Running generator"
+	@rm -rf ./pkg/*
 	@"$(GOBIN)/errors_generator" -with-gen-header=false -output-dir pkg/core
 	@"$(GOBIN)/errors_generator" -with-gen-header=false -output-dir pkg/logrus -formats logrus
 	@"$(GOBIN)/errors_generator" -with-gen-header=false -output-dir pkg/slog -formats slog

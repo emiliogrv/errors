@@ -403,7 +403,7 @@ func TestGenerateFile(t *testing.T) {
 
 				content, err := os.ReadFile(path) //nolint:gosec // security is not a concern here
 				require.NoError(t, err)
-				assert.Equal(t, "package testpkg", string(content))
+				assert.Equal(t, "package testpkg\n", string(content))
 			},
 		},
 		{
@@ -591,6 +591,7 @@ func TestRun(t *testing.T) {
 			setupGen: func(gen *Generator) {
 				gen.OutputDir = t.TempDir()
 				gen.Formats = nil // Will trigger discovery
+				gen.data.PackageName = "testing"
 			},
 			expectError: false,
 		},
@@ -826,8 +827,10 @@ func TestExportTemplates(t *testing.T) {
 					if test.minExpectedFiles > 0 {
 						entries, err := os.ReadDir(gen.ExportDir)
 						require.NoError(t, err)
-						assert.GreaterOrEqual(t, len(entries), test.minExpectedFiles,
-							"expected at least %d files, got %d", test.minExpectedFiles, len(entries))
+						assert.GreaterOrEqual(
+							t, len(entries), test.minExpectedFiles,
+							"expected at least %d files, got %d", test.minExpectedFiles, len(entries),
+						)
 					}
 				}
 			},
