@@ -50,7 +50,7 @@ type (
 
 const (
 	// Version is the version of the errors package.
-	Version = "0.0.1"
+	Version = "0.0.4"
 )
 
 //nolint:errcheck // this is for interface assertion

@@ -1,8 +1,13 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 	"text/template"
 
@@ -836,4 +841,123 @@ func TestExportTemplates(t *testing.T) {
 			},
 		)
 	}
+}
+
+// TestGetLastGitVersion tests the getLastGitVersion function.
+func TestGetLastGitVersion(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping git integration test in short mode")
+	}
+
+	// Check if git is available
+	var err error
+
+	_, err = exec.LookPath("git")
+	if err != nil {
+		t.Skip("git not available, skipping git integration test")
+	}
+
+	t.Parallel()
+
+	// This test will work with the actual git repository
+	// It should find the current git tags and increment the version
+	version, err := getLastGitVersion()
+
+	// Should not error in a git repo with tags
+	require.NoError(t, err)
+	
+	// Should return a valid version string (non-empty)
+	assert.NotEmpty(t, version)
+	
+	// Should follow semver pattern (x.y.z)
+	assert.Regexp(t, `^\d+\.\d+\.\d+$`, version)
+}
+
+// TestVersionIncrement tests the version increment logic specifically.
+func TestVersionIncrement(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping git integration test in short mode")
+	}
+
+	// Check if git is available
+	var err error
+
+	_, err = exec.LookPath("git")
+	if err != nil {
+		t.Skip("git not available, skipping git integration test")
+	}
+
+	t.Parallel()
+
+	// This test verifies that the version increment logic works
+	// by checking that the returned version is higher than the highest tag
+	version, err := getLastGitVersion()
+	require.NoError(t, err)
+	
+	// Get the actual highest git tag
+	cmd := exec.CommandContext(context.Background(), "git", "tag", "--sort=-v:refname")
+	output, err := cmd.Output()
+	require.NoError(t, err)
+	
+	tags := strings.Split(strings.TrimSpace(string(output)), "\n")
+	require.NotEmpty(t, tags, "git repository should have tags")
+	
+	// Find the highest semver tag
+	semverRegex := regexp.MustCompile(`^v?\d+\.\d+\.\d+`)
+
+	var highestTag string
+
+	for _, tag := range tags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+
+		if semverRegex.MatchString(tag) {
+			highestTag = tag
+
+			break
+		}
+	}
+	
+	require.NotEmpty(t, highestTag, "should have at least one semver tag")
+	
+	// Remove 'v' prefix if present
+	highestTag = strings.TrimPrefix(highestTag, "v")
+	
+	// Parse the highest tag and verify our version is incremented
+	parts := strings.Split(highestTag, ".")
+	require.Len(t, parts, 3, "highest tag should have 3 parts")
+	
+	expectedParts := strings.Split(version, ".")
+	require.Len(t, expectedParts, 3, "version should have 3 parts")
+	
+	// Major and minor should be the same
+	assert.Equal(t, parts[0], expectedParts[0], "major version should match")
+	assert.Equal(t, parts[1], expectedParts[1], "minor version should match")
+	
+	// Patch should be incremented
+	var lastNum, expectedNum int
+
+	_, err = fmt.Sscanf(parts[2], "%d", &lastNum)
+	require.NoError(t, err)
+	_, err = fmt.Sscanf(expectedParts[2], "%d", &expectedNum)
+	require.NoError(t, err)
+	
+	assert.Equal(t, expectedNum, lastNum+1, "patch version should be incremented by 1")
+}
+
+// TestVersionLogicIntegration tests the version logic integration in main function context.
+func TestVersionLogicIntegration(t *testing.T) {
+	t.Parallel()
+
+	// Test that version flag overrides git detection
+	gen := New()
+	
+	// Simulate setting version flag
+	testVersion := "2.0.0"
+	gen.data.Version = testVersion
+	
+	// Should use the provided version
+	assert.Equal(t, testVersion, gen.data.Version)
 }

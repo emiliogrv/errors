@@ -18,13 +18,16 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"go/format"
 	"io/fs"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
 	"time"
@@ -66,6 +69,9 @@ const (
 
 	zero = 0
 	one  = 1
+	two  = 2
+	three = 3
+	dotSeparator = "."
 )
 
 func New() *Generator {
@@ -115,6 +121,8 @@ func main() {
 		"Comma-separated list of formats to generate, or 'all' to generate all formats (default: core)",
 	)
 	testGen := flag.String("test-gen", TestGenNone, "Test generation level: none, flex, strict (default: none)")
+	versionFlag := flag.String("version", emptyString,
+		"Version to use for generated code (auto-detects from git if not specified)")
 	help := flag.Bool("help", false, "Show this help message")
 
 	flag.Parse()
@@ -138,6 +146,23 @@ func main() {
 	if generator.OutputDir == emptyString {
 		flag.Usage()
 		os.Exit(one)
+	}
+
+	// Set version based on flag or git detection
+	if *versionFlag != emptyString {
+		generator.data.Version = *versionFlag
+	} else {
+		gitVersion, err := getLastGitVersion()
+		if err != nil {
+			log.Fatalf("Error: could not detect git version and no version provided. "+
+			"Use -version flag or ensure git tags are available: %v", err)
+		}
+
+		if gitVersion == emptyString {
+			log.Fatal("Error: no semver git tags found and no version provided. Use -version flag or create a git tag")
+		}
+
+		generator.data.Version = gitVersion
 	}
 
 	err := generator.validateTestGenLevel(*testGen)
@@ -440,4 +465,58 @@ func (receiver *Generator) exportTemplates() error {
 	}
 
 	return nil
+}
+
+// getLastGitVersion attempts to get the last version from git tags
+// It handles semver versions and strips any suffixes like -alpha, -beta, etc.
+func getLastGitVersion() (string, error) {
+	// Get all git tags sorted by version
+	cmd := exec.CommandContext(context.Background(), "git", "tag", "--sort=-v:refname")
+
+	output, err := cmd.Output()
+	if err != nil {
+		return emptyString, fmt.Errorf("failed to get git tags: %w", err)
+	}
+
+	tags := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(tags) == zero || (len(tags) == one && tags[zero] == emptyString) {
+		return emptyString, nil
+	}
+
+	// Semver regex to match versions like v1.2.3, 1.2.3, etc
+	semverRegex := regexp.MustCompile(`^v?\d+\.\d+\.\d+`)
+
+	// Find the first tag that matches semver pattern
+	for _, tag := range tags {
+		tag = strings.TrimSpace(tag)
+		if tag == emptyString {
+			continue
+		}
+
+		match := semverRegex.FindString(tag)
+		if match != emptyString {
+			// Remove 'v' prefix if present
+			match = strings.TrimPrefix(match, "v")
+
+			// Parse and increment the last segment
+			parts := strings.Split(match, dotSeparator)
+			if len(parts) == three {
+				// Convert last part to int and increment
+				lastPart := parts[two]
+
+				var lastNum int
+
+				_, err = fmt.Sscanf(lastPart, "%d", &lastNum)
+				if err == nil {
+					lastNum++
+					// Reconstruct version
+					return fmt.Sprintf("%s.%s.%d", parts[0], parts[1], lastNum), nil
+				}
+			}
+
+			return match, nil
+		}
+	}
+
+	return emptyString, nil
 }
