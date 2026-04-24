@@ -321,6 +321,8 @@ Options:
         Package name for generated code (default: errors) (default "errors")
   -test-gen string
         Test generation level: none, flex, strict (default: none) (default "none")
+  -version string
+        Version for generated code (auto-detected from git tags if not provided)
   -with-gen-header
         Include generated message in generated code (default: true) (default true)
 ```
@@ -355,6 +357,12 @@ go run github.com/emiliogrv/errors/cmd/errors_generator \
     -output-dir ./pkg/full \
     -formats all \
     -test-gen strict
+
+# Generate with specific version
+go run github.com/emiliogrv/errors/cmd/errors_generator \
+    -output-dir ./pkg/full \
+    -formats all \
+    -version 1.2.3
 ```
 
 ## API Reference<a name="api-reference"></a>
