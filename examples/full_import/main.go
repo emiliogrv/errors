@@ -55,7 +55,10 @@ func anError() error {
 						WithErrors(
 							nilError, // nil error => !NILVALUE
 							fmt.Errorf("fmt error"),
-							errors.New("errors new nested 2"),
+							errors.New("errors new nested 2").
+								WithAttrs(attrs...).
+								WithTags("tag1", "tag2", "tag3").
+								WithStack(debug.Stack()),
 						),
 				),
 			fmt.Errorf(

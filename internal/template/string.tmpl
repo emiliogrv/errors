@@ -51,12 +51,14 @@ func (receiver *StructuredError) asString(stringsBuilder *strings.Builder, depth
 	if len(receiver.Tags) > zero {
 		stringsBuilder.WriteString(comma)
 		stringsBuilder.WriteString(newLine)
-		sliceToString(stringsBuilder, zero, tagsKey, receiver.Tags)
+		tabToString(stringsBuilder, depth)
+		sliceToString(stringsBuilder, depth, tagsKey, receiver.Tags)
 	}
 
 	if len(receiver.Attrs) > zero {
 		stringsBuilder.WriteString(comma)
 		stringsBuilder.WriteString(newLine)
+		tabToString(stringsBuilder, depth)
 		sliceToString(stringsBuilder, depth, attrsKey, receiver.Attrs)
 	}
 
@@ -75,8 +77,31 @@ func (receiver *StructuredError) asString(stringsBuilder *strings.Builder, depth
 	if len(receiver.Stack) > zero {
 		stringsBuilder.WriteString(comma)
 		stringsBuilder.WriteString(newLine)
-		valueToString(stringsBuilder, stackKey, string(receiver.Stack))
+		tabToString(stringsBuilder, depth)
+		stringsBuilder.WriteString(parenthesisOpen)
+		stringsBuilder.WriteString(stackKey)
+		stringsBuilder.WriteString(equals)
+
+		stackStr := string(receiver.Stack)
+		stackLines := strings.Split(stackStr, newLine)
+		_depth := depth + one
+
+		for index, line := range stackLines {
+			if line == "" {
+				continue
+			}
+
+			if index > zero {
+				stringsBuilder.WriteString(newLine)
+				tabToString(stringsBuilder, _depth)
+			}
+
+			stringsBuilder.WriteString(line)
+		}
+
 		stringsBuilder.WriteString(newLine)
+		tabToString(stringsBuilder, depth)
+		stringsBuilder.WriteString(parenthesisClose)
 	}
 }
 
