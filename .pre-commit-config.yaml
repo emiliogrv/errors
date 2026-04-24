@@ -1,4 +1,13 @@
 repos:
+  - repo: local
+    hooks:
+      - id: generate
+        name: generate
+        entry: make generate
+        language: system
+        files: \.(tmpl|go)$
+        pass_filenames: false
+
   - repo: https://github.com/tekwizely/pre-commit-golang
     rev: v1.0.0-rc.2
     hooks:

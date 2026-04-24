@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 ifeq ($(OS),Windows_NT)
     # Windows absolute path, compatible with Go
-	GOBIN := $(shell cygpath -w $(shell pwd))/bin
+	GOBIN := $(shell pwd)/bin
 else
     # Unix-like absolute path
 	GOBIN := $(shell go env PWD)/bin
