@@ -9,10 +9,18 @@ package errors
 // A non-nil error returned by Join implements the Unwrap() []error method.
 func Join(errs ...error) error {
 	count := zero
+	needsFlatten := false
 
 	for _, err := range errs {
 		if err != nil {
 			count++
+
+			//nolint:errorlint // this is intentional to avoid counting nested errors
+			se, ok := err.(*StructuredError)
+			if ok && se.joined {
+				needsFlatten = true
+				count += len(se.Errors) - one
+			}
 		}
 	}
 
@@ -22,10 +30,29 @@ func Join(errs ...error) error {
 
 	_err := &StructuredError{
 		joined: true,
+		Errors: make([]error, zero, count),
+	}
+
+	if !needsFlatten {
+		for _, err := range errs {
+			if err != nil {
+				_err.Errors = append(_err.Errors, err)
+			}
+		}
+
+		return _err
 	}
 
 	for _, err := range errs {
-		if err != nil {
+		if err == nil {
+			continue
+		}
+
+		//nolint:errorlint // this is intentional to avoid flattening nested errors
+		se, ok := err.(*StructuredError)
+		if ok && se.joined {
+			_err.Errors = append(_err.Errors, se.Errors...)
+		} else {
 			_err.Errors = append(_err.Errors, err)
 		}
 	}

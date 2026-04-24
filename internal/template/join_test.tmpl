@@ -351,3 +351,123 @@ func TestJoinWithStructuredErrors(t *testing.T) {
 		)
 	}
 }
+
+func TestJoinFlattening(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		setup         func() []error
+		name          string
+		wantOrder     []string
+		wantErrsLen   int
+	}{
+		{
+			name: "given_nested_join_when_join_then_flattens_errors",
+			setup: func() []error {
+				err1 := stderrors.New("error1")
+				err2 := stderrors.New("error2")
+				err3 := stderrors.New("error3")
+				joined := Join(err1, err2)
+
+				return []error{joined, err3}
+			},
+			wantErrsLen: 3,
+			wantOrder:   []string{"error1", "error2", "error3"},
+		},
+		{
+			name: "given_deeply_nested_join_when_join_then_flattens_completely",
+			setup: func() []error {
+				err1 := stderrors.New("error1")
+				err2 := stderrors.New("error2")
+				err3 := stderrors.New("error3")
+				err4 := stderrors.New("error4")
+				inner := Join(err1, err2)
+				middle := Join(inner, err3)
+
+				return []error{middle, err4}
+			},
+			wantErrsLen: 4,
+			wantOrder:   []string{"error1", "error2", "error3", "error4"},
+		},
+		{
+			name: "given_mixed_joined_and_non_joined_when_join_then_flattens_only_joined",
+			setup: func() []error {
+				err1 := stderrors.New("error1")
+				err2 := stderrors.New("error2")
+				err3 := stderrors.New("error3")
+				err4 := stderrors.New("error4")
+				joined := Join(err2, err3)
+
+				return []error{err1, joined, err4}
+			},
+			wantErrsLen: 4,
+			wantOrder:   []string{"error1", "error2", "error3", "error4"},
+		},
+		{
+			name: "given_structured_error_with_errors_not_joined_when_join_then_preserves_structure",
+			setup: func() []error {
+				err1 := stderrors.New("error1")
+				err2 := stderrors.New("error2")
+				err3 := stderrors.New("error3")
+				// WithErrors sets joined=false, so this should NOT be flattened
+				structured := New("parent").WithErrors(err2)
+
+				return []error{err1, structured, err3}
+			},
+			wantErrsLen: 3,
+			wantOrder:   []string{"error1", "parent", "error3"},
+		},
+		{
+			name: "given_multiple_joined_errors_when_join_then_flattens_all",
+			setup: func() []error {
+				err1 := stderrors.New("error1")
+				err2 := stderrors.New("error2")
+				err3 := stderrors.New("error3")
+				err4 := stderrors.New("error4")
+				joined1 := Join(err1, err2)
+				joined2 := Join(err3, err4)
+
+				return []error{joined1, joined2}
+			},
+			wantErrsLen: 4,
+			wantOrder:   []string{"error1", "error2", "error3", "error4"},
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given
+				errs := test.setup()
+
+				// when
+				got := Join(errs...)
+
+				// then
+				require.Error(t, got)
+
+				structErr := &StructuredError{}
+				ok := stderrors.As(got, &structErr)
+				assert.True(t, ok)
+				assert.Len(t, structErr.Errors, test.wantErrsLen)
+
+				// Verify order
+				for i, wantMsg := range test.wantOrder {
+					var gotMsg string
+
+					se := &StructuredError{}
+					if stderrors.As(structErr.Errors[i], &se) {
+						gotMsg = se.Message
+					} else {
+						gotMsg = structErr.Errors[i].Error()
+					}
+
+					assert.Equal(t, wantMsg, gotMsg)
+				}
+			},
+		)
+	}
+}
