@@ -29,8 +29,9 @@ func Join(errs ...error) error {
 	}
 
 	_err := &StructuredError{
-		joined: true,
-		Errors: make([]error, zero, count),
+		Message: joinedMessage,
+		Errors:  make([]error, zero, count),
+		joined:  true,
 	}
 
 	if !needsFlatten {

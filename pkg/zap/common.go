@@ -18,6 +18,7 @@ const (
 	stackKey         = "stack"
 	depthKey         = "depth"
 	nilValue         = "!NILVALUE"
+	joinedMessage    = "joined errors"
 	equals           = "="
 	colon            = ":"
 	quote            = `"`

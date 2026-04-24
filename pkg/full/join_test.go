@@ -346,6 +346,56 @@ func TestJoinWithStructuredErrors(t *testing.T) {
 	}
 }
 
+func TestJoinMessage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		wantMessage     string
+		errs            []error
+		wantMessageBool bool
+	}{
+		{
+			name:            "given_single_error_when_join_then_message_is_joined_errors",
+			errs:            []error{stderrors.New("error1")},
+			wantMessage:     joinedMessage,
+			wantMessageBool: true,
+		},
+		{
+			name:            "given_multiple_errors_when_join_then_message_is_joined_errors",
+			errs:            []error{stderrors.New("error1"), stderrors.New("error2")},
+			wantMessage:     joinedMessage,
+			wantMessageBool: true,
+		},
+		{
+			name:            "given_structured_errors_when_join_then_message_is_joined_errors",
+			errs:            []error{New("structured1"), New("structured2")},
+			wantMessage:     joinedMessage,
+			wantMessageBool: true,
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(
+			test.name, func(t *testing.T) {
+				t.Parallel()
+
+				// when
+				got := Join(test.errs...)
+
+				// then
+				require.Error(t, got)
+
+				structErr := &StructuredError{}
+				ok := stderrors.As(got, &structErr)
+				assert.True(t, ok)
+				assert.Equal(t, test.wantMessage, structErr.Message)
+			},
+		)
+	}
+}
+
 func TestJoinFlattening(t *testing.T) {
 	t.Parallel()
 
